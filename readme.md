@@ -23,8 +23,8 @@ Framework k6 untuk load testing multi-BP (Business Process).
 
 ```powershell
 # 1. Clone repo
-git clone https://github.com/iqbalf-a/k6-perf-framewok.git
-cd k6-perf-framewok
+git clone https://github.com/iqbalf-a/k6-perf-framework.git
+cd k6-perf-framework
 
 # 2. Install type definitions (untuk autocomplete di VS Code / IDE lain)
 npm install
