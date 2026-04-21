@@ -1,0 +1,2 @@
+lib/**/*.js linguist-vendored=false
+src/**/*.js linguist-vendored=false
