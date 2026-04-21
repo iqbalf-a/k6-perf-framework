@@ -1,0 +1,25 @@
+# ── Dependencies (hanya untuk IDE autocomplete) ───────────────────────────────
+node_modules/
+
+# ── k6 binary ─────────────────────────────────────────────────────────────────
+# Letakkan k6.exe satu level di atas repo (../k6.exe), jangan di dalam repo
+k6.exe
+k6
+
+# ── Script & scenario spesifik project ────────────────────────────────────────
+# Hanya template yang masuk repo. Script aktif per-project disimpan lokal.
+src/script/*/
+!src/script/_template/
+
+src/scenario/scenario_*.js
+!src/scenario/scenario_template.js
+
+# ── Hasil test ────────────────────────────────────────────────────────────────
+*.html
+report*.html
+
+# ── OS & editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
