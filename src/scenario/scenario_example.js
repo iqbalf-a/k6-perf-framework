@@ -13,7 +13,7 @@ import { MODE, createOptions, dispatchVu, setBpList } from '../../lib/core/confi
 import { PizzaOrder } from '../script/_example/PizzaOrder/PizzaOrder.js';
 
 // ── 2. Daftar BP ──────────────────────────────────────────────────────────────
-// Alur: Login → Get Pizza → Create Order → Get Order Detail
+// Alur: Login → Recommend Pizza → Get Detail → Submit Rating → List Ratings
 const bpList = [
     { name: 'BP001_PizzaOrder', users: 1, fn: PizzaOrder, thinkTime: 1 },
 ];

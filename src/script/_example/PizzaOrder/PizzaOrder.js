@@ -5,7 +5,7 @@
 // Flow:
 //   1. Login               → POST /api/users/token/login
 //   2. Recommend Pizza      → POST /api/pizza           (butuh auth)
-//   3. Get Pizza Detail     → GET  /api/pizza/:id       (pakai id hasil extract)
+//   3. Get Pizza Detail     → GET  /api/pizza/:id       (ID statis — pizza seed DB)
 //   4. Submit Rating        → POST /api/ratings         (butuh auth)
 //   5. List Ratings         → GET  /api/ratings         (butuh auth)
 //
@@ -43,7 +43,6 @@ export function PizzaOrder() {
             headers    : { 'Content-Type': 'application/json' },
             extract    : [
                 // type 'json' — field langsung di root response body
-                // session.token otomatis dipakai buildHeaders sebagai Authorization
                 { name: 'token', type: 'json', path: 'token' },
             ],
             // debug: true,
