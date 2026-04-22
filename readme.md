@@ -87,7 +87,8 @@ Parameter `run.ps1`:
 ```
 k6-perf-framework/
 │
-├── run.ps1                        # Entry point
+├── run.ps1                        # Entry point (PowerShell)
+├── run.bat                        # Entry point (CMD)
 │
 ├── lib/                           # Framework — jangan ubah kecuali perlu
 │   ├── core/
@@ -99,12 +100,12 @@ k6-perf-framework/
 │   ├── http/
 │   │   ├── api.js                 # Request wrapper (+ extract, debug, metrics)
 │   │   ├── batch.js               # Batch request wrapper
-│   │   ├── headers.js             # Generic default headers builder
+│   │   ├── headers.js             # Auto-header per-VU (addAutoHeader/deleteAutoHeader)
 │   │   ├── extract.js             # Ekstrak nilai dari response (json/header/regex)
 │   │   └── transaction.js         # Grouping request dalam 1 transaksi
 │   │
 │   ├── auth/                      # Helper auth — pilih sesuai kebutuhan
-│   │   └── basicAuth.js           # buildBasicAuthHeader(username, password)
+│   │   └── basicAuth.js           # basicAuth(username, password) → string b64
 │   │
 │   ├── data/
 │   │   ├── csvLoader.js           # Load CSV → SharedArray (cached)
@@ -118,15 +119,21 @@ k6-perf-framework/
 │
 └── src/                           # ★ Edit di sini
     ├── scenario/                  # Scenario files — titik masuk per project
-    │   ├── scenario_myproject.js
-    │   └── scenario_template.js   # Template untuk scenario baru
+    │   ├── scenario_template.js   # Template untuk scenario baru
+    │   └── scenario_example.js    # Contoh lengkap (QuickPizza API publik)
     │
     └── script/                    # BP scripts per project
-        └── _template/             # Template untuk project & BP baru
+        ├── _template/             # Template untuk project & BP baru
+        │   ├── channel.config.js
+        │   ├── TransactionGeneral/
+        │   └── BPxxx_NamaBP/
+        │       ├── BPxxx_NamaBP.js
+        │       └── BPxxx_data.csv
+        └── _example/              # Contoh siap pakai (QuickPizza)
             ├── channel.config.js
-            └── BPxxx_NamaBP/
-                ├── BPxxx_NamaBP.js
-                └── BPxxx_data.csv
+            └── PizzaOrder/
+                ├── PizzaOrder.js
+                └── PizzaOrder_data.csv
 ```
 
 ---
@@ -142,11 +149,11 @@ src/script/NamaProject/BPxxx_NamaBP/
 
 **2. Daftarkan di scenario file (`src/scenario/scenario_myproject.js`):**
 ```js
-import { BPxxx_NamaFungsi } from '../script/NamaProject/BPxxx_NamaBP/BPxxx_NamaBP.js';
+import { BPxxx_NamaBP } from '../script/NamaProject/BPxxx_NamaBP/BPxxx_NamaBP.js';
 
 const bpList = [
     // ... BP lain
-    { name: 'BPxxx', users: N, fn: BPxxx_NamaFungsi, thinkTime: 1 },
+    { name: 'BPxxx', users: N, fn: BPxxx_NamaBP, thinkTime: 1 },
 ];
 ```
 
@@ -179,12 +186,12 @@ Tidak semua aplikasi menggunakan mekanisme auth yang sama. Pilih helper yang ses
 
 | Metode | Helper | Contoh penggunaan |
 |--------|--------|-------------------|
-| Basic Auth | `lib/auth/basicAuth.js` | `buildBasicAuthHeader(user, pass)` |
+| Basic Auth | `lib/auth/basicAuth.js` | `addAutoHeader('Authorization', \`Basic ${basicAuth(user, pass)}\`)` |
 | Form / JSON body | — | Kirim via `body` parameter di `api()` |
-| Bearer Token | Otomatis | Extract token → `session.token` → auto-inject |
-| API Key | — | Tambahkan via `headers: { 'X-Api-Key': key }` |
+| Bearer / Token | `addAutoHeader` | `addAutoHeader('Authorization', \`Bearer ${session.token}\`)` |
+| API Key | `addAutoHeader` | `addAutoHeader('X-Api-Key', key)` |
 
-Token apapun yang di-extract dengan nama mengandung "token" akan otomatis di-inject sebagai `Authorization: Bearer ...` ke semua request berikutnya.
+`addAutoHeader(key, value)` menyuntikkan header ke semua request setelah baris tersebut dipanggil. Gunakan `deleteAutoHeader(key)` untuk menghapusnya kembali.
 
 ---
 
