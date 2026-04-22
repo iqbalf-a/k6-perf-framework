@@ -4,7 +4,9 @@ param(
     [string]$scenario   = "scenario_template",
     [int]   $vus        = 1,
     [int]   $iterations = 1,
-    [switch]$debug
+    [switch]$debug,
+    [switch]$dashboard,
+    [switch]$csv
 )
 
 # $env:K6_PROMETHEUS_RW_SERVER_URL                = "http://<prometheus-host>:9090/api/v1/write"
@@ -33,6 +35,16 @@ $k6Args = @(
     # "-e", "BASE_URL=https://10.x.x.x"
     # "-e", "BASE_URL_SUB=https://10.x.x.x:443"
 )
+
+if ($dashboard) {
+    $k6Args += "--out"
+    $k6Args += "web-dashboard"
+}
+
+if ($csv) {
+    $k6Args += "--out"
+    $k6Args += "csv=${testid}.csv"
+}
 
 if ($debug) {
     $k6Args += "--http-debug=full"

@@ -57,17 +57,28 @@ npm install
 
 # stress
 .\run.ps1 -mode stress -scenario scenario_myproject
+
+# dengan k6 web dashboard (buka http://localhost:5665)
+.\run.ps1 -mode loadtest -scenario scenario_myproject -dashboard
+
+# export hasil ke CSV
+.\run.ps1 -mode loadtest -scenario scenario_myproject -csv
+
+# kombinasi dashboard + CSV
+.\run.ps1 -mode loadtest -scenario scenario_myproject -dashboard -csv
 ```
 
 Parameter `run.ps1`:
 
 | Parameter     | Default        | Keterangan                              |
 |---------------|----------------|-----------------------------------------|
-| `-mode`       | `testhit`      | testhit / loadtest / stress / spike     |
-| `-scenario`   | `scenario_1bp` | nama file di `src/scenario/`            |
-| `-vus`        | `1`            | jumlah VU (mode testhit/spike)          |
-| `-iterations` | `1`            | jumlah iterasi (mode testhit)           |
-| `-debug`      | off            | aktifkan http-debug=full                |
+| `-mode`       | `testhit`           | testhit / loadtest / stress / spike     |
+| `-scenario`   | `scenario_template` | nama file di `src/scenario/`            |
+| `-vus`        | `1`                 | jumlah VU (mode testhit/spike)          |
+| `-iterations` | `1`                 | jumlah iterasi (mode testhit)           |
+| `-debug`      | off                 | aktifkan http-debug=full                       |
+| `-dashboard`  | off                 | aktifkan k6 web dashboard (localhost:5665)      |
+| `-csv`        | off                 | export hasil ke CSV (`<testid>.csv`)            |
 
 ---
 

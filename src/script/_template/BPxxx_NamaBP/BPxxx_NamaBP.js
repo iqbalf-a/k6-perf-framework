@@ -10,28 +10,31 @@ import { batch } from '../../../../lib/http/batch.js';
 import { loadCSV } from '../../../../lib/data/csvLoader.js';
 import { getUser } from '../../../../lib/data/userProvider.js';
 import { year, today, daysAgo } from '../../../../lib/utils/dateHelper.js';
-import { BASE_URL, BASE_URL_SUB } from '../channel.config.js';  // parameter scope channel
-
-import { Login }          from '../../BPJPH/TransactionGeneral/Login.js';
-import { Loadpage }       from '../../BPJPH/TransactionGeneral/LoadPage.js';
-import { Prelogin }       from '../../BPJPH/TransactionGeneral/Prelogin.js';
-import { Dashboard }      from '../../BPJPH/TransactionGeneral/Dashboard.js';
-import { DashboardHalal } from '../../BPJPH/TransactionGeneral/DashboardHalal.js';
-import { Logout }         from '../../BPJPH/TransactionGeneral/Logout.js';
+import { BASE_URL, BASE_URL_SUB } from '../channel.config.js';
+import { addAutoHeader, deleteAutoHeader } from '../../../../lib/http/headers.js';
+// import { basicAuth } from '../../../../lib/auth/basicAuth.js';
+// import { Login }     from '../TransactionGeneral/Login.js';
+// import { Logout }    from '../TransactionGeneral/Logout.js';
 
 const users = loadCSV(import.meta.resolve('./BPxxx_data.csv'));
 
-export function BPxxx_NamaFungsi() {
+export function BPxxx_NamaBP() {
     const user = getUser(users, 'BPxxx');
     // const session = getSession();
     let tx = '';
 
+    // ── Header global — berlaku untuk SEMUA request setelah baris ini ────────────
+    // addAutoHeader('Authorization', `Basic ${basicAuth(user.userName, user.password)}`);
+    // addAutoHeader('X-Company-Id', user.companyId);
+    // deleteAutoHeader('Authorization');   // hapus dari global setelah tidak dibutuhkan
+    //
+    // ── Per-request: headers menambah/override, excludeHeaders menghapus ─────────
+    // api({ ..., headers: { 'X-Custom': 'value' } });           // tambah/override untuk 1 request ini
+    // api({ ..., excludeHeaders: ['Authorization'] });           // hapus dari global untuk 1 request ini
+
     // ── Transaksi umum (uncomment jika dipakai) ───────────────────────────────
-    // tx = 'BPxxx_01_Loadpage';   Loadpage(tx, user);   sleep(1);
-    // tx = 'BPxxx_02_Prelogin';   Prelogin(tx, user);   sleep(1);
-    // tx = 'BPxxx_03_Login';      Login(tx, user);       sleep(1);
-    // tx = 'BPxxx_04_Dashboard';  Dashboard(tx, user);   sleep(1);
-    // tx = 'BPxxx_05_Logout';     Logout(tx, user);
+    // tx = 'BPxxx_01_Login';   Login(tx, user);   sleep(1);
+    // tx = 'BPxxx_02_Logout';  Logout(tx, user);
 
     // ── Contoh: single API (JSON body) ────────────────────────────────────────
     // tx = 'BPxxx_01_NamaTransaksi';
@@ -46,8 +49,7 @@ export function BPxxx_NamaFungsi() {
     //                         }),
     //         transaction   : tx,
     //         headers       : { 'X-Username': user.userName },
-    //         // Authorization & kopraId otomatis dari session jika tersedia
-    //         // excludeHeaders: ['Authorization', 'kopraId'],  // web_remove_header: hapus header auto-inject untuk request ini saja
+    //         // excludeHeaders: ['Authorization'],  // hapus header auto-inject untuk request ini saja
     //     });
     // });
     // sleep(1);
@@ -78,7 +80,7 @@ export function BPxxx_NamaFungsi() {
     //         headers    : { 'X-Username': user.userName },
     //         extract    : [
     //             { name: 'accessToken', type: 'json',   path: 'data.accessToken'  }, // simpan ke session.accessToken
-    //             { name: 'sessionId',   type: 'header', name: 'X-Session-Id'      }, // dari response header
+    //             { name: 'sessionId',   type: 'header', header: 'X-Session-Id'    }, // dari response header
     //             { name: 'csrfToken',   type: 'regex',  pattern: '"csrf":"(.*?)"' }, // dari body pakai regex
     //         ],
     //         // debug   : true,    // log req + res + hasil extract untuk request ini

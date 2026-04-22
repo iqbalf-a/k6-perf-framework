@@ -10,9 +10,11 @@ k6
 # Hanya template yang masuk repo. Script aktif per-project disimpan lokal.
 src/script/*/
 !src/script/_template/
+!src/script/_example/
 
 src/scenario/scenario_*.js
 !src/scenario/scenario_template.js
+!src/scenario/scenario_example.js
 
 # ── Hasil test ────────────────────────────────────────────────────────────────
 *.html
