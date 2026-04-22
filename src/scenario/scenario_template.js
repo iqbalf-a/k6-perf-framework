@@ -7,9 +7,8 @@ import { MODE, createOptions, dispatchVu, setBpList } from '../../lib/core/confi
 
 // ── 1. Import fungsi utama tiap BP ───────────────────────────────────────────
 // Setiap BP adalah satu fungsi yang berisi urutan transaksi untuk 1 flow.
-// Contoh:
-import { BP001_NamaFungsi } from '../script/NamaChannel/BP001_NamaBP/BP001_NamaBP.js';
-import { BP002_NamaFungsi } from '../script/NamaChannel/BP002_NamaBP/BP002_NamaBP.js';
+// import { BP001_NamaFungsi } from '../script/NamaProject/BP001_NamaBP/BP001_NamaBP.js';
+// import { BP002_NamaFungsi } from '../script/NamaProject/BP002_NamaBP/BP002_NamaBP.js';
 // Tambah import BP lain di sini...
 
 // ── 2. Daftar BP ──────────────────────────────────────────────────────────────
@@ -18,8 +17,8 @@ import { BP002_NamaFungsi } from '../script/NamaChannel/BP002_NamaBP/BP002_NamaB
 // fn       : fungsi utama BP (dari import di atas)
 // thinkTime: (opsional) jeda detik antar BP pada mode testhit/spike
 const bpList = [
-    { name: 'BP001', users: 5, fn: BP001_NamaFungsi, thinkTime: 1 },
-    { name: 'BP002', users: 3, fn: BP002_NamaFungsi },
+    // { name: 'BP001', users: 5, fn: BP001_NamaFungsi, thinkTime: 1 },
+    // { name: 'BP002', users: 3, fn: BP002_NamaFungsi },
 ];
 // totalUsers = 8 — dihitung otomatis dari bpList
 

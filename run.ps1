@@ -1,7 +1,7 @@
 # run.ps1
 param(
     [string]$mode       = "testhit",
-    [string]$scenario   = "scenario_1bp",
+    [string]$scenario   = "scenario_template",
     [int]   $vus        = 1,
     [int]   $iterations = 1,
     [switch]$debug
