@@ -10,7 +10,7 @@
 import { MODE, createOptions, dispatchVu, setBpList } from '../../lib/core/config.js';
 
 // ── 1. Import fungsi BP ───────────────────────────────────────────────────────
-import { PizzaOrder } from '../script/_example/PizzaOrder/PizzaOrder.js';
+import { PizzaOrder } from '../script/_exampleChannel/PizzaOrder/PizzaOrder.js';
 
 // ── 2. Daftar BP ──────────────────────────────────────────────────────────────
 // Alur: Login → Recommend Pizza → Get Detail → Submit Rating → List Ratings

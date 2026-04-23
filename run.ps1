@@ -42,8 +42,9 @@ if ($dashboard) {
 }
 
 if ($csv) {
+    if (-not (Test-Path "results")) { New-Item -ItemType Directory -Path "results" | Out-Null }
     $k6Args += "--out"
-    $k6Args += "csv=${testid}.csv"
+    $k6Args += "csv=results/${testid}.csv"
 }
 
 if ($debug) {

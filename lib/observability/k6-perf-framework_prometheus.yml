@@ -1,0 +1,13 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # k6 HTTP stats endpoint (opsional — aktifkan jika pakai k6 --out statsd/http)
+  # - job_name: "k6"
+  #   static_configs:
+  #     - targets: ["<k6-host>:6565"]

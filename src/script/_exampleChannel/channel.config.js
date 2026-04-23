@@ -2,3 +2,4 @@
 // https://quickpizza.grafana.com
 
 export const BASE_URL = 'https://quickpizza.grafana.com';
+export const CHANNEL  = 'GrafanaPizza';
