@@ -93,6 +93,7 @@ k6-perf-framework/
 ├── lib/                           # Framework — jangan ubah kecuali perlu
 │   ├── core/
 │   │   ├── config.js              # createOptions(), dispatchVu(), generateStages()
+│   │   ├── runScript.js           # Entry point BP — setara "Action" di LoadRunner VuGen
 │   │   ├── session.js             # Per-VU key-value store
 │   │   ├── vuContext.js           # Mapping VU → user index
 │   │   └── metrics.js             # Custom metrics: api_duration, trx_duration
@@ -129,6 +130,9 @@ k6-perf-framework/
         ├── _template/             # Template untuk project & BP baru
         │   ├── channel.config.js
         │   ├── TransactionGeneral/
+        │   │   ├── index.js       # Bundle export — import semua trx dari 1 baris
+        │   │   ├── Login.js
+        │   │   └── Logout.js
         │   └── BPxxx_NamaBP/
         │       ├── BPxxx_NamaBP.js
         │       └── BPxxx_data.csv
@@ -150,7 +154,38 @@ src/script/NamaProject/BPxxx_NamaBP/
 └── BPxxx_data.csv
 ```
 
-**2. Daftarkan di scenario file (`src/scenario/scenario_myproject.js`):**
+**2. Isi `BPxxx_NamaBP.js` dengan flow bisnis:**
+```js
+import { sleep } from 'k6';
+import { runScript } from '../../../../lib/core/runScript.js';
+import { loadCSV } from '../../../../lib/data/csvLoader.js';
+import { transaction } from '../../../../lib/http/transaction.js';
+import { api } from '../../../../lib/http/api.js';
+import { BASE_URL, CHANNEL } from '../channel.config.js';
+// import { Login, Logout } from '../TransactionGeneral/index.js';
+
+const dataset = loadCSV(import.meta.resolve('./BPxxx_data.csv'));
+
+export function BPxxx_NamaBP() {
+    runScript({ dataset, name: 'BPxxx', channel: CHANNEL, fn: (data, session) => {
+        let tx = '';
+
+        tx = 'BPxxx_01_NamaTransaksi';
+        transaction(tx, () => {
+            api({
+                name       : '01_01_nama-endpoint',
+                url        : `${BASE_URL}/path/to/endpoint`,
+                method     : 'POST',
+                body       : JSON.stringify({ key: 'value' }),
+                transaction: tx,
+            });
+        });
+        sleep(1);
+    }});
+}
+```
+
+**3. Daftarkan di scenario file (`src/scenario/scenario_myproject.js`):**
 ```js
 import { BPxxx_NamaBP } from '../script/NamaProject/BPxxx_NamaBP/BPxxx_NamaBP.js';
 
@@ -172,27 +207,57 @@ src/script/NamaProject/
 └── channel.config.js   ← salin dari src/script/_template/channel.config.js
 ```
 
-**2. Set `CHANNEL` di `channel.config.js`:**
+**2. (Opsional) Set `CHANNEL` di `channel.config.js`:**
 ```js
 export const BASE_URL = 'https://your-server.com';
-export const CHANNEL  = 'NamaProject';   // ← label group di Grafana
+export const CHANNEL  = 'NamaProject';   // label group di Grafana (tag: ::NamaProject)
 ```
 
-**3. (Opsional) Set `session.channel` di awal fungsi BP:**
-```js
-import { CHANNEL } from '../channel.config.js';
+Jika `CHANNEL` tidak di-set, tag group Grafana otomatis menggunakan `'default'` — tidak perlu konfigurasi tambahan.
 
-export function BPxxx_NamaBP() {
-    const session = getSession();
-    session.channel = CHANNEL;   // jika tidak di-set, default: 'default'
+**3. Pass `channel` ke `runScript` (jika dipakai):**
+```js
+import { BASE_URL, CHANNEL } from '../channel.config.js';
+
+runScript({ dataset, name: 'BPxxx', channel: CHANNEL, fn: (data, session) => {
     // ...
-}
+}});
+
+// Tanpa CHANNEL — tag group Grafana: '::default'
+runScript({ dataset, name: 'BPxxx', fn: (data, session) => {
+    // ...
+}});
 ```
 
 **4. Buat scenario file di `src/scenario/`** (salin dari `scenario_template.js`), lalu jalankan:
 ```powershell
 .\run.ps1 -mode loadtest -scenario scenario_myproject
 ```
+
+---
+
+## Sumber Variabel dalam BP Script
+
+Ada tiga sumber variabel yang digunakan dalam script BP, masing-masing punya lifecycle berbeda:
+
+| # | Sumber | Cara akses | Isi | Lifecycle |
+|---|--------|------------|-----|-----------|
+| 1 | **Config** | `BASE_URL`, `CHANNEL` | Konstanta statis — URL server, nama channel, dll | Konstan sepanjang test, sama untuk semua VU |
+| 2 | **CSV data** | `data.userName`, `data.companyId` | Data per-user dari file CSV | Statis per-VU — VU 1 selalu dapat baris 1, VU 2 baris 2, dst |
+| 3 | **Session** | `session.token`, `session.kopraId` | Nilai hasil extract dari response API | Dinamis — berubah tiap iterasi (login ulang, token baru) |
+
+```js
+runScript({ dataset, name: 'BPxxx', channel: CHANNEL, fn: (data, session) => {
+    // CHANNEL   → config      — konstan, dari channel.config.js
+    // data      → CSV data    — 1 baris sesuai VU, disiapkan runScript
+    // session   → session     — diisi saat extract response API
+
+    addAutoHeader('X-Company-Id', data.companyId)          // dari CSV
+    addAutoHeader('Authorization', `Bearer ${session.token}`) // dari session (hasil extract login)
+}});
+```
+
+Cara bedain sekilas: `UPPERCASE` = config, `data.xxx` = CSV, `session.xxx` = hasil extract runtime.
 
 ---
 
@@ -207,7 +272,7 @@ export function BPxxx_NamaBP() {
 
 `addAutoHeader(key, value)` menyuntikkan header ke semua request setelah baris tersebut dipanggil. Gunakan `deleteAutoHeader(key)` untuk menghapus satu header, atau `clearAutoHeaders()` untuk menghapus semua header yang ditambahkan dan kembali ke header default.
 
-`clearAutoHeaders()` dipanggil di blok `finally` setiap fungsi BP — memastikan iterasi berikutnya selalu mulai dari kondisi header yang bersih, baik saat flow sukses maupun saat ada transaksi gagal.
+`clearAutoHeaders()` dipanggil otomatis oleh `runScript` di akhir setiap iterasi — memastikan iterasi berikutnya selalu mulai dari kondisi header yang bersih, baik saat flow sukses maupun saat ada transaksi gagal.
 
 ---
 
@@ -245,20 +310,27 @@ Bila ada API yang merespons non-200, framework secara otomatis:
 4. **Reset header** — blok `finally` memanggil `clearAutoHeaders()`, sehingga iterasi berikutnya mulai dari header default tanpa sisa token/session dari iterasi sebelumnya.
 
 Pola ini setara dengan `lr_exit(LR_EXIT_ITERATION_AND_CONTINUE, ...)` di LoadRunner.
+`runScript` menangani semua ini secara otomatis — BP author tidak perlu menulis try/catch/finally.
 
 ```js
-try {
-    tx = 'BP001_01_Login';
-    transaction(tx, () => { api({ ... }); });
-    sleep(1);
+export function BPxxx_NamaBP() {
+    runScript({ dataset, name: 'BPxxx', channel: CHANNEL, fn: (data, session) => {
+        let tx = '';
 
-    // transaksi berikutnya hanya dieksekusi jika Login sukses
-    tx = 'BP001_02_GetData';
-    transaction(tx, () => { api({ ... }); });
-} catch (e) {
-    if (!(e instanceof IterationAbortError)) throw e;
-} finally {
-    clearAutoHeaders();   // selalu dijalankan — bersihkan header
+        tx = 'BPxxx_01_Login';
+        transaction(tx, () => {
+            api({ ... });
+        });
+        sleep(1);
+
+        // hanya dieksekusi jika Login sukses — jika gagal, iterasi sudah selesai
+        tx = 'BPxxx_02_GetData';
+        transaction(tx, () => {
+            api({ ... });
+        });
+
+        sleep(5);
+    }});
 }
 ```
 
@@ -295,23 +367,34 @@ Format `::X` pada tag `group` sengaja mengikuti konvensi k6 agar Grafana variabl
 ### Contoh penggunaan
 
 ```js
-import { CHANNEL } from '../channel.config.js';   // CHANNEL = 'GrafanaPizza'
+import { sleep } from 'k6';
+import { runScript } from '../../../../lib/core/runScript.js';
+import { loadCSV } from '../../../../lib/data/csvLoader.js';
 import { transaction } from '../../../../lib/http/transaction.js';
 import { api } from '../../../../lib/http/api.js';
+import { BASE_URL, CHANNEL } from '../channel.config.js';   // CHANNEL = 'GrafanaPizza'
+
+const dataset = loadCSV(import.meta.resolve('./PizzaOrder_data.csv'));
 
 export function PizzaOrder() {
-    const session = getSession();
-    session.channel = CHANNEL;   // tag group: ::GrafanaPizza
+    runScript({ dataset, name: 'PizzaOrder', channel: CHANNEL, fn: (data, session) => {
+        // tag group otomatis: ::GrafanaPizza
 
-    const tx = 'BP001_01_Login';
-    transaction(tx, () => {
-        api({
-            name       : '001_01_01_/api/users/token/login',
-            url        : `${BASE_URL}/api/users/token/login`,
-            method     : 'POST',
-            transaction: tx,
+        const tx = 'BP001_01_Login';
+        transaction(tx, () => {
+            api({
+                name       : '001_01_01_/api/users/token/login',
+                url        : `${BASE_URL}/api/users/token/login`,
+                method     : 'POST',
+                body       : JSON.stringify({ username: data.username, password: data.password }),
+                transaction: tx,
+                extract    : [
+                    { name: 'token', type: 'json', path: 'token' },
+                ],
+            });
         });
-    });
+        sleep(1);
+    }});
 }
 ```
 

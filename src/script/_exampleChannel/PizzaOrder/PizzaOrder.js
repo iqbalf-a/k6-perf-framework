@@ -15,23 +15,19 @@
 //   type: 'header' — ambil nilai dari response header
 // ─────────────────────────────────────────────────────────────────────────────
 import { sleep } from 'k6';
-import { getSession } from '../../../../lib/core/session.js';
-import { transaction, IterationAbortError } from '../../../../lib/http/transaction.js';
-import { api } from '../../../../lib/http/api.js';
+import { runScript } from '../../../../lib/core/runScript.js';
 import { loadCSV } from '../../../../lib/data/csvLoader.js';
-import { getData } from '../../../../lib/data/userProvider.js';
-import { addAutoHeader, clearAutoHeaders } from '../../../../lib/http/headers.js';
+import { transaction } from '../../../../lib/http/transaction.js';
+import { api } from '../../../../lib/http/api.js';
+import { addAutoHeader } from '../../../../lib/http/headers.js';
 import { BASE_URL, CHANNEL } from '../channel.config.js';
 
 const dataset = loadCSV(import.meta.resolve('./PizzaOrder_data.csv'));
 
 export function PizzaOrder() {
-    const data = getData(dataset, 'PizzaOrder');
-    const session = getSession();
-    session.channel = CHANNEL;
-    let tx = '';
+    runScript({ dataset, name: 'PizzaOrder', channel: CHANNEL, fn: (data, session) => {
+        let tx = '';
 
-    try {
         // ── BP001_01 — Login → extract token dari JSON body ───────────────────────
         // POST /api/users/token/login  →  { "token": "abcd1234" }
         tx = 'BP001_01_Login';
@@ -47,7 +43,6 @@ export function PizzaOrder() {
                     // type 'json' — field langsung di root response body
                     { name: 'token', type: 'json', path: 'token' },
                 ],
-                // debug: true,
             });
         });
         sleep(1);
@@ -74,18 +69,14 @@ export function PizzaOrder() {
                     { name: 'pizzaName',     type: 'json',  path: 'pizza.name'  },
                     { name: 'pizzaCalories', type: 'json',  path: 'calories'    },
                     // type 'regex' — ambil nama tool dari raw body dengan regex
-                    // body contoh: ... "tool":"Knife" ...
                     { name: 'pizzaTool',     type: 'regex', pattern: '"tool":"(.*?)"' },
                 ],
-                // debug: true,
             });
         });
         sleep(1);
 
         // ── BP001_03 — Get Pizza Detail → pakai id statis dari DB permanen ─────────
         // GET /api/pizza/:id  →  { "id": 1, "name": "...", "dough": {...}, "ingredients": [...] }
-        // Catatan: pizza ID dari step recommend (session.pizzaId) adalah temporary;
-        // untuk demo get-by-id dipakai ID=1 yang selalu ada di database.
         tx = 'BP001_03_GetPizzaDetail';
         transaction(tx, () => {
             api({
@@ -94,20 +85,16 @@ export function PizzaOrder() {
                 method     : 'GET',
                 transaction: tx,
                 extract    : [
-                    // Ambil nama pizza yang disimpan di DB
-                    { name: 'staticPizzaName', type: 'json', path: 'name' },
+                    { name: 'staticPizzaName', type: 'json',   path: 'name'         },
                     // type 'header' — ambil nilai dari response header
-                    // Berguna untuk extract Set-Cookie, X-Request-Id, X-Session-Id, dll.
-                    { name: 'contentType', type: 'header', header: 'Content-Type' },
+                    { name: 'contentType',     type: 'header', header: 'Content-Type' },
                 ],
             });
         });
         sleep(1);
 
-        // ── BP001_04 — Submit Rating → extract rating id ──────────────────────────
+        // ── BP001_04 — Submit Rating ───────────────────────────────────────────────
         // POST /api/ratings  →  { "id": 12345, "stars": 5, "pizza_id": 1 }
-        // Catatan: pizza_id harus berupa ID dari pizza yang tersimpan di DB (bukan pizza
-        // temporary dari recommend). ID 1–13 adalah pizza seed yang selalu tersedia.
         tx = 'BP001_04_SubmitRating';
         transaction(tx, () => {
             api({
@@ -136,9 +123,5 @@ export function PizzaOrder() {
         });
 
         sleep(3);
-    } catch (e) {
-        if (!(e instanceof IterationAbortError)) throw e;
-    } finally {
-        clearAutoHeaders();   // reset ke base header — iterasi berikutnya mulai bersih
-    }
+    }});
 }
