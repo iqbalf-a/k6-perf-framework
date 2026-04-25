@@ -13,7 +13,7 @@ param(
 # $env:K6_PROMETHEUS_RW_TREND_STATS               = "p(90),p(95),p(99),min,max,avg"
 # $env:K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM = "false"
 
-$testid = "${scenario}_${mode}_$((Get-Date).ToString('dd/MM/yy_HHmm'))"
+$testid = "${scenario}_${mode}_$((Get-Date).ToString('dd-MM-yy_HHmm'))"
 
 $scenarioPath = "src\scenario\$scenario.js"
 
@@ -31,7 +31,7 @@ $k6Args = @(
     "-e", "VUS=$vus",
     "-e", "ITERATIONS=$iterations",
     "--tag", "testid=$testid"
-    # Override channel config via env (opsional):
+    # Override parameter config via env (opsional — menimpa nilai di parameter.config.js):
     # "-e", "BASE_URL=https://10.x.x.x"
     # "-e", "BASE_URL_SUB=https://10.x.x.x:443"
 )

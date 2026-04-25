@@ -20,12 +20,12 @@ import { loadCSV } from '../../../../lib/data/csvLoader.js';
 import { transaction } from '../../../../lib/http/transaction.js';
 import { api } from '../../../../lib/http/api.js';
 import { addAutoHeader } from '../../../../lib/http/headers.js';
-import { BASE_URL, CHANNEL } from '../channel.config.js';
+import { parameter } from '../parameter.config.js';
 
 const dataset = loadCSV(import.meta.resolve('./PizzaOrder_data.csv'));
 
 export function PizzaOrder() {
-    runScript({ dataset, name: 'PizzaOrder', channel: CHANNEL, fn: (data, session) => {
+    runScript({ dataset, name: 'PizzaOrder', parameter, fn: (data, session) => {
         let tx = '';
 
         // ── BP001_01 — Login → extract token dari JSON body ───────────────────────
@@ -34,7 +34,7 @@ export function PizzaOrder() {
         transaction(tx, () => {
             api({
                 name       : '001_01_01_/api/users/token/login',
-                url        : `${BASE_URL}/api/users/token/login`,
+                url        : `${parameter.BASE_URL}/api/users/token/login`,
                 method     : 'POST',
                 body       : JSON.stringify({ username: data.username, password: data.password }),
                 transaction: tx,
@@ -56,7 +56,7 @@ export function PizzaOrder() {
         transaction(tx, () => {
             api({
                 name       : '001_02_01_/api/pizza',
-                url        : `${BASE_URL}/api/pizza`,
+                url        : `${parameter.BASE_URL}/api/pizza`,
                 method     : 'POST',
                 body       : JSON.stringify({
                     maxCaloriesPerSlice : 800,
@@ -81,7 +81,7 @@ export function PizzaOrder() {
         transaction(tx, () => {
             api({
                 name       : '001_03_01_/api/pizza/:id',
-                url        : `${BASE_URL}/api/pizza/1`,
+                url        : `${parameter.BASE_URL}/api/pizza/1`,
                 method     : 'GET',
                 transaction: tx,
                 extract    : [
@@ -99,7 +99,7 @@ export function PizzaOrder() {
         transaction(tx, () => {
             api({
                 name       : '001_04_01_/api/ratings',
-                url        : `${BASE_URL}/api/ratings`,
+                url        : `${parameter.BASE_URL}/api/ratings`,
                 method     : 'POST',
                 body       : JSON.stringify({ stars: 5, pizza_id: 1 }),
                 transaction: tx,
@@ -116,7 +116,7 @@ export function PizzaOrder() {
         transaction(tx, () => {
             api({
                 name       : '001_05_01_/api/ratings',
-                url        : `${BASE_URL}/api/ratings`,
+                url        : `${parameter.BASE_URL}/api/ratings`,
                 method     : 'GET',
                 transaction: tx,
             });

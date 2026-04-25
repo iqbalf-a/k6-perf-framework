@@ -6,8 +6,8 @@ import { runScript } from '../../../../lib/core/runScript.js';
 import { loadCSV } from '../../../../lib/data/csvLoader.js';
 import { transaction } from '../../../../lib/http/transaction.js';
 import { api } from '../../../../lib/http/api.js';
-import { BASE_URL /*, BASE_URL_SUB, CHANNEL */ } from '../channel.config.js';
-// CHANNEL opsional — uncomment di atas dan tambahkan channel: CHANNEL di runScript
+import { parameter } from '../parameter.config.js';
+// parameter.CHANNEL opsional — uncomment CHANNEL di parameter.config.js dan pass parameter ke runScript
 // jika tidak di-set, tag group Grafana default: '::default'
 // import { addAutoHeader } from '../../../../lib/http/headers.js';
 // import { batch }         from '../../../../lib/http/batch.js';
@@ -18,7 +18,7 @@ import { BASE_URL /*, BASE_URL_SUB, CHANNEL */ } from '../channel.config.js';
 const dataset = loadCSV(import.meta.resolve('./BPxxx_data.csv'));
 
 export function BPxxx_NamaBP() {
-    runScript({ dataset, name: 'BPxxx', fn: (data, session) => {
+    runScript({ dataset, name: 'BPxxx', parameter, fn: (data, session) => {
         // data    — row CSV sesuai VU (data.userName, data.password, dll)
         // session — nilai hasil extract tersimpan di sini (session.token, dll); opsional
         let tx = '';
@@ -37,7 +37,7 @@ export function BPxxx_NamaBP() {
         // transaction(tx, () => {
         //     api({
         //         name       : '01_01_nama-endpoint',
-        //         url        : `${BASE_URL}/path/to/endpoint`,
+        //         url        : `${parameter.BASE_URL}/path/to/endpoint`,
         //         method     : 'POST',
         //         body       : JSON.stringify({ key: 'value' }),
         //         transaction: tx,
@@ -51,7 +51,7 @@ export function BPxxx_NamaBP() {
         // transaction(tx, () => {
         //     api({
         //         name       : '02_01_nama-endpoint',
-        //         url        : `${BASE_URL}/path/to/endpoint`,
+        //         url        : `${parameter.BASE_URL}/path/to/endpoint`,
         //         method     : 'POST',
         //         body       : `grant_type=password&username=${data.userName}&password=${data.password}`,
         //         transaction: tx,
@@ -65,7 +65,7 @@ export function BPxxx_NamaBP() {
         // transaction(tx, () => {
         //     api({
         //         name       : '03_01_nama-endpoint',
-        //         url        : `${BASE_URL}/path/to/endpoint`,
+        //         url        : `${parameter.BASE_URL}/path/to/endpoint`,
         //         method     : 'POST',
         //         body       : JSON.stringify({ key: 'value' }),
         //         transaction: tx,
@@ -83,8 +83,8 @@ export function BPxxx_NamaBP() {
         // tx = 'BPxxx_04_NamaBatch';
         // transaction(tx, () => {
         //     batch([
-        //         { name: '04_01_endpoint-a', url: `${BASE_URL}/path/a` },
-        //         { name: '04_02_endpoint-b', url: `${BASE_URL}/path/b` },
+        //         { name: '04_01_endpoint-a', url: `${parameter.BASE_URL}/path/a` },
+        //         { name: '04_02_endpoint-b', url: `${parameter.BASE_URL}/path/b` },
         //     ], tx);
         // });
         // sleep(1);

@@ -121,6 +121,8 @@ k6-perf-framework/
 │       ├── k6-perf-framework_loki.yml     # Konfigurasi Loki
 │       └── k6-perf-framework_prometheus.yml # Konfigurasi Prometheus
 │
+├── results/                       # Output CSV test (dibuat otomatis saat -csv)
+│
 └── src/                           # ★ Edit di sini
     ├── scenario/                  # Scenario files — titik masuk per project
     │   ├── scenario_template.js   # Template untuk scenario baru
@@ -128,7 +130,7 @@ k6-perf-framework/
     │
     └── script/                    # BP scripts per project/channel
         ├── _template/             # Template untuk project & BP baru
-        │   ├── channel.config.js
+        │   ├── parameter.config.js
         │   ├── TransactionGeneral/
         │   │   ├── index.js       # Bundle export — import semua trx dari 1 baris
         │   │   ├── Login.js
@@ -137,11 +139,13 @@ k6-perf-framework/
         │       ├── BPxxx_NamaBP.js
         │       └── BPxxx_data.csv
         └── _exampleChannel/       # Contoh siap pakai (QuickPizza)
-            ├── channel.config.js  # BASE_URL, CHANNEL = 'GrafanaPizza'
+            ├── parameter.config.js  # parameter.BASE_URL, parameter.CHANNEL = 'GrafanaPizza'
             └── PizzaOrder/
                 ├── PizzaOrder.js
                 └── PizzaOrder_data.csv
 ```
+
+> **Penting:** folder `lib/` adalah inti framework — **jangan diubah**. Semua kustomisasi dilakukan di `src/`.
 
 ---
 
@@ -161,20 +165,20 @@ import { runScript } from '../../../../lib/core/runScript.js';
 import { loadCSV } from '../../../../lib/data/csvLoader.js';
 import { transaction } from '../../../../lib/http/transaction.js';
 import { api } from '../../../../lib/http/api.js';
-import { BASE_URL, CHANNEL } from '../channel.config.js';
+import { parameter } from '../parameter.config.js';
 // import { Login, Logout } from '../TransactionGeneral/index.js';
 
 const dataset = loadCSV(import.meta.resolve('./BPxxx_data.csv'));
 
 export function BPxxx_NamaBP() {
-    runScript({ dataset, name: 'BPxxx', channel: CHANNEL, fn: (data, session) => {
+    runScript({ dataset, name: 'BPxxx', parameter, fn: (data, session) => {
         let tx = '';
 
         tx = 'BPxxx_01_NamaTransaksi';
         transaction(tx, () => {
             api({
                 name       : '01_01_nama-endpoint',
-                url        : `${BASE_URL}/path/to/endpoint`,
+                url        : `${parameter.BASE_URL}/path/to/endpoint`,
                 method     : 'POST',
                 body       : JSON.stringify({ key: 'value' }),
                 transaction: tx,
@@ -201,32 +205,31 @@ Selesai — tidak perlu ubah file lain.
 
 ## Cara Tambah Project Baru
 
-**1. Buat folder channel di `src/script/`:**
+**1. Buat folder project di `src/script/`:**
 ```
 src/script/NamaProject/
-└── channel.config.js   ← salin dari src/script/_template/channel.config.js
+└── parameter.config.js   ← salin dari src/script/_template/parameter.config.js
 ```
 
-**2. (Opsional) Set `CHANNEL` di `channel.config.js`:**
+**2. (Opsional) Set `CHANNEL` di `parameter.config.js`:**
 ```js
-export const BASE_URL = 'https://your-server.com';
-export const CHANNEL  = 'NamaProject';   // label group di Grafana (tag: ::NamaProject)
+export const parameter = {
+    BASE_URL : 'https://your-server.com',
+    CHANNEL  : 'NamaProject',   // label group di Grafana (tag: ::NamaProject)
+};
 ```
 
 Jika `CHANNEL` tidak di-set, tag group Grafana otomatis menggunakan `'default'` — tidak perlu konfigurasi tambahan.
 
-**3. Pass `channel` ke `runScript` (jika dipakai):**
+**3. Pass `parameter` ke `runScript`:**
 ```js
-import { BASE_URL, CHANNEL } from '../channel.config.js';
+import { parameter } from '../parameter.config.js';
 
-runScript({ dataset, name: 'BPxxx', channel: CHANNEL, fn: (data, session) => {
-    // ...
+runScript({ dataset, name: 'BPxxx', parameter, fn: (data, session) => {
+    // parameter.BASE_URL, parameter.CHANNEL, dll tersedia di sini
 }});
 
-// Tanpa CHANNEL — tag group Grafana: '::default'
-runScript({ dataset, name: 'BPxxx', fn: (data, session) => {
-    // ...
-}});
+// Tanpa CHANNEL di parameter.config.js — tag group Grafana: '::default'
 ```
 
 **4. Buat scenario file di `src/scenario/`** (salin dari `scenario_template.js`), lalu jalankan:
@@ -242,22 +245,25 @@ Ada tiga sumber variabel yang digunakan dalam script BP, masing-masing punya lif
 
 | # | Sumber | Cara akses | Isi | Lifecycle |
 |---|--------|------------|-----|-----------|
-| 1 | **Config** | `BASE_URL`, `CHANNEL` | Konstanta statis — URL server, nama channel, dll | Konstan sepanjang test, sama untuk semua VU |
+| 1 | **Parameter** | `parameter.BASE_URL`, `parameter.CHANNEL` | Konstanta statis — URL server, nama group Grafana, dll | Konstan sepanjang test, sama untuk semua VU |
 | 2 | **CSV data** | `data.userName`, `data.companyId` | Data per-user dari file CSV | Statis per-VU — VU 1 selalu dapat baris 1, VU 2 baris 2, dst |
 | 3 | **Session** | `session.token`, `session.kopraId` | Nilai hasil extract dari response API | Dinamis — berubah tiap iterasi (login ulang, token baru) |
 
 ```js
-runScript({ dataset, name: 'BPxxx', channel: CHANNEL, fn: (data, session) => {
-    // CHANNEL   → config      — konstan, dari channel.config.js
-    // data      → CSV data    — 1 baris sesuai VU, disiapkan runScript
-    // session   → session     — diisi saat extract response API
+import { parameter } from '../parameter.config.js';
 
-    addAutoHeader('X-Company-Id', data.companyId)          // dari CSV
-    addAutoHeader('Authorization', `Bearer ${session.token}`) // dari session (hasil extract login)
+runScript({ dataset, name: 'BPxxx', parameter, fn: (data, session) => {
+    // parameter → config    — konstan, dari parameter.config.js (BASE_URL, CHANNEL, dll)
+    // data      → CSV data  — 1 baris sesuai VU, disiapkan runScript
+    // session   → session   — diisi saat extract response API
+
+    addAutoHeader('X-Company-Id', data.companyId)                      // dari CSV
+    addAutoHeader('Authorization', `Bearer ${session.token}`)          // dari session (hasil extract login)
+    api({ url: `${parameter.BASE_URL}/path` })                         // dari parameter.config.js
 }});
 ```
 
-Cara bedain sekilas: `UPPERCASE` = config, `data.xxx` = CSV, `session.xxx` = hasil extract runtime.
+Cara bedain sekilas: `parameter.xxx` = config, `data.xxx` = CSV, `session.xxx` = hasil extract runtime.
 
 ---
 
@@ -307,14 +313,15 @@ Bila ada API yang merespons non-200, framework secara otomatis:
 1. **Stop** — API-API berikutnya dalam transaksi yang sama tidak dieksekusi.
 2. **Catat fail** — `trx_count_fail`, `trx_duration_fail` direkam dengan tag transaksi tersebut.
 3. **Exit iterasi** — `IterationAbortError` dilempar; iterasi VU langsung selesai, lanjut ke iterasi berikutnya.
-4. **Reset header** — blok `finally` memanggil `clearAutoHeaders()`, sehingga iterasi berikutnya mulai dari header default tanpa sisa token/session dari iterasi sebelumnya.
+4. **Log error** — pesan error dicetak ke console dan dikirim ke Loki secara otomatis.
+5. **Reset header** — `clearAutoHeaders()` dipanggil di `finally`, iterasi berikutnya mulai dari header default.
 
 Pola ini setara dengan `lr_exit(LR_EXIT_ITERATION_AND_CONTINUE, ...)` di LoadRunner.
 `runScript` menangani semua ini secara otomatis — BP author tidak perlu menulis try/catch/finally.
 
 ```js
 export function BPxxx_NamaBP() {
-    runScript({ dataset, name: 'BPxxx', channel: CHANNEL, fn: (data, session) => {
+    runScript({ dataset, name: 'BPxxx', parameter, fn: (data, session) => {
         let tx = '';
 
         tx = 'BPxxx_01_Login';
@@ -333,6 +340,35 @@ export function BPxxx_NamaBP() {
     }});
 }
 ```
+
+### Stop Iterasi dengan Pesan Custom
+
+Selain dari kegagalan API, iterasi bisa dihentikan manual dengan melempar `IterationAbortError` langsung dari dalam `fn`. Berguna untuk validasi kondisi bisnis sebelum melanjutkan flow.
+
+```js
+import { IterationAbortError } from '../../../../lib/http/transaction.js';
+
+export function BPxxx_NamaBP() {
+    runScript({ dataset, name: 'BPxxx', parameter, fn: (data, session) => {
+
+        if (!data.companyId) {
+            throw new IterationAbortError('companyId kosong — skip iterasi');
+        }
+
+        tx = 'BPxxx_01_Login';
+        transaction(tx, () => { api({ ... }); });
+        sleep(1);
+
+    }});
+}
+```
+
+Output console dan Loki saat iterasi dihentikan:
+```
+[BPxxx_NamaBP] iterasi dibatalkan — transaksi gagal: companyId kosong — skip iterasi
+```
+
+`clearAutoHeaders()` tetap dipanggil otomatis di `finally`, sehingga header bersih untuk iterasi berikutnya.
 
 ---
 
@@ -372,19 +408,19 @@ import { runScript } from '../../../../lib/core/runScript.js';
 import { loadCSV } from '../../../../lib/data/csvLoader.js';
 import { transaction } from '../../../../lib/http/transaction.js';
 import { api } from '../../../../lib/http/api.js';
-import { BASE_URL, CHANNEL } from '../channel.config.js';   // CHANNEL = 'GrafanaPizza'
+import { parameter } from '../parameter.config.js';   // parameter.CHANNEL = 'GrafanaPizza'
 
 const dataset = loadCSV(import.meta.resolve('./PizzaOrder_data.csv'));
 
 export function PizzaOrder() {
-    runScript({ dataset, name: 'PizzaOrder', channel: CHANNEL, fn: (data, session) => {
+    runScript({ dataset, name: 'PizzaOrder', parameter, fn: (data, session) => {
         // tag group otomatis: ::GrafanaPizza
 
         const tx = 'BP001_01_Login';
         transaction(tx, () => {
             api({
                 name       : '001_01_01_/api/users/token/login',
-                url        : `${BASE_URL}/api/users/token/login`,
+                url        : `${parameter.BASE_URL}/api/users/token/login`,
                 method     : 'POST',
                 body       : JSON.stringify({ username: data.username, password: data.password }),
                 transaction: tx,
