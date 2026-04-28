@@ -41,14 +41,21 @@ if ($dashboard) {
     $k6Args += "web-dashboard"
 }
 
+if (-not (Test-Path "results")) { New-Item -ItemType Directory -Path "results" | Out-Null }
+
 if ($csv) {
-    if (-not (Test-Path "results")) { New-Item -ItemType Directory -Path "results" | Out-Null }
     $k6Args += "--out"
     $k6Args += "csv=results/${testid}.csv"
 }
 
 if ($debug) {
+    # $k6Args += "-e"
+    # $k6Args += "DEBUG=true"
+
     $k6Args += "--http-debug=full"
+
+    # $k6Args += "--log-output"
+    # $k6Args += "file=results/${testid}.log"
 }
 
 # ✅ Selalu run dari config.js
@@ -57,17 +64,13 @@ $k6Args += $scenarioPath
 Write-Host "`n`n`n========================================"
 Write-Host " k6 Test Runner"
 Write-Host "========================================"
-Write-Host " Scenario : $scenario"
-Write-Host " Mode     : $mode"
-Write-Host " VUs      : $vus"
+Write-Host " Scenario  : $scenario"
+Write-Host " Mode      : $mode"
+Write-Host " VUs       : $vus"
 Write-Host " Iterations: $iterations"
-Write-Host " Test ID  : $testid"
-Write-Host " Debug    : $($debug.IsPresent)"
+Write-Host " Test ID   : $testid"
+Write-Host " Debug     : $($debug.IsPresent)"
 Write-Host "========================================`n`n`n"
-
-
-# [Console]::Out.Flush()
-# Start-Sleep -Milliseconds 200
 
 $k6Exe = Join-Path $PSScriptRoot "..\k6.exe"
 if (-not (Test-Path $k6Exe)) {

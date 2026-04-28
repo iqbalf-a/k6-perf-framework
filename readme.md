@@ -239,6 +239,104 @@ runScript({ dataset, name: 'BPxxx', parameter, fn: (data, session) => {
 
 ---
 
+## Extract & Batch
+
+### Extract — Ambil Nilai dari Response
+
+Tambahkan `extract` di dalam `api()` untuk menyimpan nilai ke `session`:
+
+```js
+api({
+    name       : '01_01_/api/login',
+    url        : `${parameter.BASE_URL}/api/login`,
+    method     : 'POST',
+    transaction: tx,
+    extract    : [
+        { name: 'accessToken', type: 'jsonpath', path: '$.data.accessToken' },  // JSON path
+        { name: 'sessionId',   type: 'header',   header: 'X-Session-Id'     },  // response header
+        { name: 'csrf',        type: 'regex',     pattern: '"csrf":"(.*?)"'  },  // regex capture group 1
+    ],
+});
+// session.accessToken, session.sessionId, session.csrf tersedia setelah baris ini
+```
+
+| `type`     | Field wajib | Keterangan                                             |
+|------------|-------------|--------------------------------------------------------|
+| `jsonpath` | `path`      | JSONPath Plus syntax: `$.data.accessToken`             |
+| `header`   | `header`    | Nama response header: `Content-Type`                   |
+| `regex`    | `pattern`   | Regex — capture group pertama yang diambil             |
+
+### `type: 'jsonpath'` — Syntax & Contoh
+
+Gunakan JSONPath Plus syntax untuk extract nilai dari JSON response. Tidak butuh library tambahan.
+
+```js
+extract: [
+    // single value
+    { name: 'token',     type: 'jsonpath', path: '$.data.token'        },
+    { name: 'userId',    type: 'jsonpath', path: '$.data.user.id'      },
+    { name: 'lastItem',  type: 'jsonpath', path: '$.data.items[-1].name' },
+
+    // semua id dari array — all: true → format ordinal (setara Select Ordinal: All VuGen)
+    { name: 'itemId',    type: 'jsonpath', path: '$.data.items[*].id',  all: true },
+    // → session.itemId_1, session.itemId_2, ..., session.itemId_count
+    // → session.itemId = [full array]
+
+    // filter kondisi — semua id dengan status active
+    { name: 'activeId',  type: 'jsonpath', path: '$.data.items[?(@.status=="active")].id',  all: true },
+
+    // filter angka — semua name dengan price < 10
+    { name: 'cheapItem', type: 'jsonpath', path: '$.data.items[?(@.price<10)].name',         all: true },
+
+    // recursive search — cari 'token' di mana pun dalam response
+    { name: 'token',     type: 'jsonpath', path: '$..token'             },
+]
+```
+
+| Syntax              | Contoh                                            | Keterangan                     |
+|---------------------|---------------------------------------------------|--------------------------------|
+| `$.field`           | `$.data.token`                                    | Field dari root                |
+| `$.a.b.c`           | `$.data.user.id`                                  | Path bersarang                 |
+| `[*]`               | `$.data.items[*].id`                              | Semua item array               |
+| `[n]`               | `$.data.items[0].id`                              | Index ke-n (mulai 0)           |
+| `[-n]`              | `$.data.items[-1].id`                             | Dari belakang (-1 = terakhir)  |
+| `[start:end]`       | `$.data.items[0:3].id`                            | Slice                          |
+| `[?(@.field==val)]` | `$.data.items[?(@.status=="active")].id`          | Filter kondisi                 |
+| `$..field`          | `$..token`                                        | Recursive — cari di semua level |
+
+Operator filter: `==` `!=` `<` `>` `<=` `>=`
+
+**`all: true`** — aktifkan format ordinal: `name_1`, `name_2`, `name_count` (setara Select Ordinal: All di VuGen). Tanpa `all: true`, array tersimpan langsung sebagai `session[name] = [...]`.
+
+Regex juga mendukung `all: true`:
+```js
+{ name: 'ref', type: 'regex', pattern: '"ref":"(.*?)"', all: true }
+// → session.ref_1, session.ref_2, ..., session.ref_count
+```
+
+### Batch — Beberapa Request Paralel
+
+Gunakan `batch()` di dalam `transaction()` untuk mengirim beberapa request serentak, seperti browser yang load aset paralel:
+
+```js
+import { batch } from '../../../../lib/http/batch.js';
+
+tx = 'BPxxx_03_LoadAssets';
+transaction(tx, () => {
+    batch([
+        { name: '03_01_/api/config',  url: `${parameter.BASE_URL}/api/config`          },
+        { name: '03_02_/api/profile', url: `${parameter.BASE_URL}/api/profile`         },
+        { name: '03_03_/api/menu',    url: `${parameter.BASE_URL}/api/menu`,
+          method: 'POST', body: JSON.stringify({ type: 'main' })                        },
+    ], tx);
+});
+sleep(1);
+```
+
+Setiap request dalam batch dicatat secara individual di `api_duration` dan `check` — hasilnya terlihat terpisah di Grafana.
+
+---
+
 ## Sumber Variabel dalam BP Script
 
 Ada tiga sumber variabel yang digunakan dalam script BP, masing-masing punya lifecycle berbeda:
@@ -425,7 +523,7 @@ export function PizzaOrder() {
                 body       : JSON.stringify({ username: data.username, password: data.password }),
                 transaction: tx,
                 extract    : [
-                    { name: 'token', type: 'json', path: 'token' },
+                    { name: 'token', type: 'jsonpath', path: '$.token' },
                 ],
             });
         });

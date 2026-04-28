@@ -11,6 +11,7 @@ import { parameter } from '../parameter.config.js';
 // jika tidak di-set, tag group Grafana default: '::default'
 // import { addAutoHeader } from '../../../../lib/http/headers.js';
 // import { batch }         from '../../../../lib/http/batch.js';
+// import { IterationAbortError } from '../../../../lib/http/transaction.js';
 // import { basicAuth }     from '../../../../lib/auth/basicAuth.js';
 // import { year, today, daysAgo } from '../../../../lib/utils/dateHelper.js';
 // import { Login, Logout } from '../TransactionGeneral/index.js';
@@ -60,7 +61,7 @@ export function BPxxx_NamaBP() {
         // });
         // sleep(1);
 
-        // ── Extract dari response ─────────────────────────────────────────────────
+        // ── Extract single dari response ──────────────────────────────────────────
         // tx = 'BPxxx_03_NamaTransaksi';
         // transaction(tx, () => {
         //     api({
@@ -70,21 +71,56 @@ export function BPxxx_NamaBP() {
         //         body       : JSON.stringify({ key: 'value' }),
         //         transaction: tx,
         //         extract    : [
-        //             { name: 'accessToken', type: 'json',   path: 'data.accessToken'  },
-        //             { name: 'sessionId',   type: 'header', header: 'X-Session-Id'    },
-        //             { name: 'csrfToken',   type: 'regex',  pattern: '"csrf":"(.*?)"' },
+        //             { name: 'accessToken', type: 'jsonpath', path: '$.data.accessToken' },
+        //             { name: 'sessionId',   type: 'header',   header: 'X-Session-Id'     },
+        //             { name: 'csrfToken',   type: 'regex',    pattern: '"csrf":"(.*?)"'  },
         //         ],
         //     });
         // });
         // addAutoHeader('Authorization', `Bearer ${session.accessToken}`);
         // sleep(1);
 
-        // ── Batch (beberapa request paralel) ──────────────────────────────────────
-        // tx = 'BPxxx_04_NamaBatch';
+        // ── Extract all — setara Select Ordinal: All di VuGen ─────────────────────
+        // tx = 'BPxxx_04_NamaList';
+        // transaction(tx, () => {
+        //     api({
+        //         name       : '04_01_nama-list-endpoint',
+        //         url        : `${parameter.BASE_URL}/path/to/list`,
+        //         method     : 'GET',
+        //         transaction: tx,
+        //         extract    : [
+        //             // single value
+        //             { name: 'itemName',  type: 'jsonpath', path: '$.data.name' },
+        //
+        //             // semua id dari array → all: true untuk format ordinal
+        //             { name: 'itemId',    type: 'jsonpath', path: '$.data.items[*].id',    all: true },
+        //             // → session.itemId_1, session.itemId_2, ..., session.itemId_count
+        //
+        //             // filter kondisi — semua id dengan status active
+        //             { name: 'activeId',  type: 'jsonpath', path: '$.data.items[?(@.status=="active")].id', all: true },
+        //
+        //             // filter angka — semua name dengan price < 10
+        //             { name: 'cheapItem', type: 'jsonpath', path: '$.data.items[?(@.price<10)].name', all: true },
+        //
+        //             // index — item terakhir
+        //             { name: 'lastItem',  type: 'jsonpath', path: '$.data.items[-1].name' },
+        //
+        //             // recursive search — cari field 'token' di mana pun dalam response
+        //             { name: 'token',     type: 'jsonpath', path: '$..token' },
+        //
+        //             // regex semua match
+        //             { name: 'ref',       type: 'regex',    pattern: '"ref":"(.*?)"', all: true },
+        //         ],
+        //     });
+        // });
+        // sleep(1);
+
+        // ── Batch — beberapa request paralel dalam satu transaksi ─────────────────
+        // tx = 'BPxxx_05_NamaBatch';
         // transaction(tx, () => {
         //     batch([
-        //         { name: '04_01_endpoint-a', url: `${parameter.BASE_URL}/path/a` },
-        //         { name: '04_02_endpoint-b', url: `${parameter.BASE_URL}/path/b` },
+        //         { name: '05_01_endpoint-a', url: `${parameter.BASE_URL}/path/a` },
+        //         { name: '05_02_endpoint-b', url: `${parameter.BASE_URL}/path/b`, method: 'POST', body: JSON.stringify({ key: 'val' }) },
         //     ], tx);
         // });
         // sleep(1);

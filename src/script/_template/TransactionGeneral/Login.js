@@ -17,7 +17,7 @@ export function Login(tx, data) {
             method     : 'POST',
             body       : JSON.stringify({ username: data.userName, password: data.password }),
             extract    : [
-                { name: 'accessToken', type: 'json', path: 'data.accessToken' },
+                { name: 'accessToken', type: 'jsonpath', path: '$.data.accessToken' },
             ],
             transaction: tx,
         });
