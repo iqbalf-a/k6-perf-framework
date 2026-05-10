@@ -80,13 +80,16 @@ export function PizzaOrder() {
             sleep(1);
 
             // ── BP001_03 — Get Pizza Details → batch paralel ──────────────────────────
-            // GET /api/pizza/1  &  GET /api/pizza/2  — dikirim serentak
+            // GET /api/pizza/1  &  GET /api/pizza/2  — dikirim serentak via http.batch()
+            // api() di dalam callback TIDAK dieksekusi langsung — dikumpulkan dulu,
+            // lalu batch() kirim semuanya paralel setelah fn() selesai.
             tx = 'BP001_03_GetPizzaDetails';
             transaction(tx, () => {
-                batch([
-                    { name: '001_03_01_/api/pizza/1', url: `${parameter.BASE_URL}/api/pizza/1` },
-                    { name: '001_03_02_/api/pizza/2', url: `${parameter.BASE_URL}/api/pizza/2` },
-                ], tx);
+                batch(tx, () => {
+                    api({ name: '001_03_01_/api/pizza/1', url: `${parameter.BASE_URL}/api/pizza/1`,
+                         extract: [{ name: 'pizza1Name', type: 'jsonpath', path: '$.name' }] });
+                    api({ name: '001_03_02_/api/pizza/2', url: `${parameter.BASE_URL}/api/pizza/2` });
+                });
             });
             sleep(1);
 

@@ -100,9 +100,10 @@ k6-perf-framework/
 │   │
 │   ├── http/
 │   │   ├── api.js                 # Request wrapper (extract, debug, metrics, fail callback)
-│   │   ├── batch.js               # Batch request wrapper
+│   │   ├── batch.js               # Kirim beberapa api() paralel — batch(tx, () => { api(); api(); })
+│   │   ├── _batchState.js         # Shared queue per-VU untuk batch mode (internal)
 │   │   ├── headers.js             # Auto-header per-VU (addAutoHeader/deleteAutoHeader/clearAutoHeaders)
-│   │   ├── extract.js             # Ekstrak nilai dari response (json/header/regex)
+│   │   ├── extract.js             # Ekstrak nilai dari response (jsonpath/header/regex)
 │   │   └── transaction.js         # Grouping + TPS metrics (pass/fail) + IterationAbortError
 │   │
 │   ├── auth/
@@ -338,24 +339,35 @@ Regex juga mendukung `all: true`:
 
 ### Batch — Beberapa Request Paralel
 
-Gunakan `batch()` di dalam `transaction()` untuk mengirim beberapa request serentak, seperti browser yang load aset paralel:
+Gunakan `batch()` di dalam `transaction()` untuk mengirim beberapa request serentak. Tulis `api()` seperti biasa di dalam callback — `api()` tidak langsung dieksekusi, melainkan dikumpulkan terlebih dahulu, lalu `batch()` mengirim semuanya paralel via `http.batch()` k6 setelah callback selesai.
 
 ```js
 import { batch } from '../../../../lib/http/batch.js';
 
 tx = 'BPxxx_03_LoadAssets';
 transaction(tx, () => {
-    batch([
-        { name: '03_01_/api/config',  url: `${parameter.BASE_URL}/api/config`          },
-        { name: '03_02_/api/profile', url: `${parameter.BASE_URL}/api/profile`         },
-        { name: '03_03_/api/menu',    url: `${parameter.BASE_URL}/api/menu`,
-          method: 'POST', body: JSON.stringify({ type: 'main' })                        },
-    ], tx);
+    batch(tx, () => {
+        api({ name: '03_01_/api/config',
+              url:  `${parameter.BASE_URL}/api/config` });
+
+        api({ name:    '03_02_/api/profile',
+              url:     `${parameter.BASE_URL}/api/profile`,
+              extract: [{ name: 'profileId', type: 'jsonpath', path: '$.data.id' }] });
+
+        api({ name:   '03_03_/api/menu',
+              url:    `${parameter.BASE_URL}/api/menu`,
+              method: 'POST',
+              body:   JSON.stringify({ type: 'main' }) });
+    });
 });
 sleep(1);
 ```
 
-Setiap request dalam batch dicatat secara individual di `api_duration` dan `check` — hasilnya terlihat terpisah di Grafana.
+`api()` di dalam `batch()` mendukung semua field yang sama: `name`, `url`, `method`, `body`, `headers`, `extract`. Parameter `transaction` tidak perlu di-pass per `api()` — sudah di-pass ke `batch()` sebagai argumen pertama.
+
+Semua request HTTP dikirim **paralel** via `http.batch()` k6. Setelah semua response kembali, `check`, `extract`, dan `api_duration` diproses per item — hasilnya terlihat terpisah di Grafana.
+
+> Gunakan `batch()` hanya jika request memang perlu dikirim serentak (misal: load aset paralel seperti browser). Jika cukup sequential, gunakan beberapa `api()` biasa dalam satu `transaction()`.
 
 ---
 

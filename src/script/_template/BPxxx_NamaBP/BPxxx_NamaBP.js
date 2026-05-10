@@ -120,13 +120,17 @@ export function BPxxx_NamaBP() {
         // });
         // sleep(1);
 
-        // ── Batch — beberapa request paralel dalam satu transaksi ─────────────────
+        // ── Batch — beberapa request PARALEL dalam satu transaksi ────────────────
+        // api() di dalam callback TIDAK langsung execute — dikumpulkan dulu,
+        // lalu batch() kirim semuanya serentak via http.batch() setelah fn() selesai.
         // tx = 'BPxxx_05_NamaBatch';
         // transaction(tx, () => {
-        //     batch([
-        //         { name: '05_01_endpoint-a', url: `${parameter.BASE_URL}/path/a` },
-        //         { name: '05_02_endpoint-b', url: `${parameter.BASE_URL}/path/b`, method: 'POST', body: JSON.stringify({ key: 'val' }) },
-        //     ], tx);
+        //     batch(tx, () => {
+        //         api({ name: '05_01_endpoint-a', url: `${parameter.BASE_URL}/path/a`,
+        //              extract: [{ name: 'configValue', type: 'jsonpath', path: '$.data.value' }] });
+        //         api({ name: '05_02_endpoint-b', url: `${parameter.BASE_URL}/path/b`,
+        //              method: 'POST', body: JSON.stringify({ key: 'val' }) });
+        //     });
         // });
         // sleep(1);
 
