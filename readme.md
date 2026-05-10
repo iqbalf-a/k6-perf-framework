@@ -308,6 +308,22 @@ Operator filter: `==` `!=` `<` `>` `<=` `>=`
 
 **`all: true`** — aktifkan format ordinal: `name_1`, `name_2`, `name_count` (setara Select Ordinal: All di VuGen). Tanpa `all: true`, array tersimpan langsung sebagai `session[name] = [...]`.
 
+**`notFound`** — perilaku jika path tidak ditemukan, setara setting `NOTFOUND` di VuGen:
+
+| Nilai | Perilaku | Kapan dipakai |
+|-------|----------|---------------|
+| `'warning'` | `console.warn` lalu lanjut **(default)** | Kebanyakan kasus |
+| `'error'` | `console.error` lalu lanjut | Field wajib, ingin terlihat jelas di log |
+| `'ignore'` | Silent, tidak ada log | Loop/pagination — path memang boleh kosong di iterasi tertentu |
+
+```js
+extract: [
+    { name: 'token',     type: 'jsonpath', path: '$.data.token'              },  // default: warning
+    { name: 'reqId',     type: 'jsonpath', path: '$.requestId', notFound: 'error'   },  // field wajib
+    { name: 'nextToken', type: 'jsonpath', path: '$.nextToken', notFound: 'ignore'  },  // boleh kosong
+]
+```
+
 Regex juga mendukung `all: true`:
 ```js
 { name: 'ref', type: 'regex', pattern: '"ref":"(.*?)"', all: true }

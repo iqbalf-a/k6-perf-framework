@@ -74,6 +74,11 @@ export function BPxxx_NamaBP() {
         //             { name: 'accessToken', type: 'jsonpath', path: '$.data.accessToken' },
         //             { name: 'sessionId',   type: 'header',   header: 'X-Session-Id'     },
         //             { name: 'csrfToken',   type: 'regex',    pattern: '"csrf":"(.*?)"'  },
+        //             // notFound (opsional) — perilaku jika path tidak ketemu, setara NOTFOUND VuGen:
+        //             //   'warning' (default) — console.warn, lanjut
+        //             //   'error'             — console.error, lanjut
+        //             //   'ignore'            — silent, untuk loop/pagination yang memang boleh kosong
+        //             { name: 'nextToken', type: 'jsonpath', path: '$.data.nextToken', notFound: 'ignore' },
         //         ],
         //     });
         // });

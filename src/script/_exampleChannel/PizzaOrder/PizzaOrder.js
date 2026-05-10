@@ -43,7 +43,8 @@ export function PizzaOrder() {
                     headers: { 'Content-Type': 'application/json' },
                     extract: [
                         { name: 'token', type: 'jsonpath', path: '$.token' },
-                    ]
+                    ],
+                    debug: true
                 });
             });
             sleep(1);

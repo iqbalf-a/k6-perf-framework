@@ -20,6 +20,7 @@ src/scenario/scenario_*.js
 results/
 *.html
 report*.html
+!lib/observability/k6-dashboard/**/*.html
 
 # ── OS & editor ───────────────────────────────────────────────────────────────
 .DS_Store
