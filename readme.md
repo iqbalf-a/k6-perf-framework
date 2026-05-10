@@ -16,7 +16,7 @@ Framework k6 untuk load testing multi-BP (Business Process).
   ├── k6.exe              ← di sini
   └── k6-perf-framework/  ← repo ini
   ```
-- **Node.js** — hanya untuk IDE autocomplete (`@types/k6`), tidak dibutuhkan saat runtime k6.
+- **Node.js** — hanya untuk IDE autocomplete (`@types/k6`), tidak dibutuhkan saat runtime k6. Dibutuhkan juga jika ingin menjalankan **k6 Dashboard** (alternatif Grafana berbasis CSV).
 - **PowerShell** — sudah tersedia di Windows.
 
 ### Instalasi
@@ -120,6 +120,12 @@ k6-perf-framework/
 │       ├── k6-perf-framework_grafana.json # Grafana dashboard (import manual)
 │       ├── k6-perf-framework_loki.yml     # Konfigurasi Loki
 │       └── k6-perf-framework_prometheus.yml # Konfigurasi Prometheus
+│
+├── tools/                         # Tooling standalone (bukan bagian k6 runtime)
+│   └── k6-dashboard/              # Dashboard visualizer CSV hasil k6 (alternatif Grafana)
+│       ├── server.js              # Express server — jalankan dengan: node server.js
+│       ├── package.json
+│       └── public/index.html      # UI dashboard (dark theme, Chart.js)
 │
 ├── results/                       # Output CSV test (dibuat otomatis saat -csv)
 │
@@ -554,11 +560,69 @@ Transaksi dianggap **gagal** jika ada API di dalamnya yang merespons dengan stat
 
 ## Observability
 
+Ada dua opsi dashboard untuk memvisualisasikan hasil load test:
+
+| Opsi | Kebutuhan | Kelebihan |
+|------|-----------|-----------|
+| **Grafana stack** | Prometheus + Loki + Grafana (Docker/server) | Real-time saat test berjalan, filter time range, log error |
+| **k6 Dashboard** | Node.js saja | Tanpa server eksternal — cukup drop file CSV |
+
+---
+
+## k6 Dashboard (Alternatif Grafana)
+
+Dashboard visualizer hasil k6 berbasis CSV. Tidak butuh Prometheus atau Grafana — cukup jalankan Node.js dan upload file CSV dari `results/`.
+
+### Setup
+
+```powershell
+# Masuk ke folder dashboard
+cd tools\k6-dashboard
+
+# Install dependencies (sekali saja)
+npm install
+
+# Jalankan server
+node server.js
+```
+
+Server berjalan di **http://localhost:3000**.
+
+### Cara Pakai
+
+1. Jalankan test dengan flag `-csv` untuk menghasilkan file CSV:
+   ```powershell
+   .\run.ps1 -mode loadtest -scenario scenario_myproject -csv
+   ```
+   File tersimpan di `results/<testid>.csv`.
+
+2. Buka **http://localhost:3000** di browser.
+
+3. Ada dua cara load data:
+   - **Upload File** — klik "Upload CSV", pilih file dari `results/`. Cocok untuk file kecil-sedang.
+   - **Load via Path** — masukkan path absolut ke file CSV (misal `D:\github-repos\k6-portable\k6-perf-framework\results\20250511_143022.csv`). Cocok untuk file besar karena tidak perlu copy file.
+
+### Panel yang Tersedia
+
+| Panel | Keterangan |
+|-------|------------|
+| Stat cards | Total request, error rate, peak RPS/TPS, avg/p90/p95/p99 response time |
+| Transaction table | Min/avg/max/p90 duration, success/error count, success rate per transaksi |
+| API table | Min/avg/max/p90 duration, success/error count per API endpoint |
+| TPS / RPS chart | Transaksi & request per second over time |
+| Response time chart | Avg response time over time (per transaksi / per API) |
+| Checks table | Pass/fail rate per check assertion |
+| VU over time | Jumlah VU aktif selama test |
+
+---
+
+## Grafana Stack
+
 Stack: **k6 → Prometheus (remote write) → Grafana** + **k6 → Loki** untuk error log.
 
 ### Setup
 
-1. **Prometheus** — jalankan dengan flag `--web.enable-remote-write-receiver`, gunakan config dari `lib/observability/k6-perf-framework_prometheus.yml`.
+1. **Prometheus** — jalankan dengan flag `--web.enable-remote-write-receiver`, gunakan config dari [lib/observability/k6-perf-framework_prometheus.yml](lib/observability/k6-perf-framework_prometheus.yml).
 
 2. **Loki** — jalankan dengan config dari `lib/observability/k6-perf-framework_loki.yml`. Update host di `lib/observability/loki.js`:
    ```js
@@ -580,7 +644,7 @@ Stack: **k6 → Prometheus (remote write) → Grafana** + **k6 → Loki** untuk 
    .\run.ps1 -mode loadtest -scenario scenario_myproject
    ```
 
-### Dashboard Grafana
+### Panel Grafana
 
 | Panel                          | Sumber metric          | Keterangan                                    |
 |--------------------------------|------------------------|-----------------------------------------------|
