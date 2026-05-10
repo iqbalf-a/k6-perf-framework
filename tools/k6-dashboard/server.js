@@ -68,6 +68,9 @@ function parseK6CSV(filePath) {
     //   txDurData[tx] = { bkts:{ b->{ sum,n,min,max } }, vals:[] }
     const txDurData = {};
 
+    // per-bucket overall transaction completions count (for TPS Overall)
+    const trxAllBkts = {};
+
     // http_reqs per transaction: txReqData[tx] = { ok, err }
     // Used for success/error count (before trx_count overrides)
     const txReqData = {};
@@ -77,6 +80,10 @@ function parseK6CSV(filePath) {
 
     // trx_count custom metrics: tx -> { pass, fail, total }
     const txCountData = {};
+
+    // group tags
+    const groupSet  = new Set();
+    const txToGroup = {};
 
     // checks: bucket -> { pass, total }
     const chkBkts = {};
@@ -118,6 +125,8 @@ function parseK6CSV(filePath) {
         case 'http_reqs': {
           const { transaction:tx, api, testid:tid } = getEt();
           if (tid && !testid) testid = tid;
+          const group = row.group || '';
+          if (group) { groupSet.add(group); if (tx && !txToGroup[tx]) txToGroup[tx] = group; }
 
           if (!reqBkts[b]) reqBkts[b] = { ok:0, err:0 };
           if (isOk) reqBkts[b].ok++; else reqBkts[b].err++;
@@ -188,6 +197,7 @@ function parseK6CSV(filePath) {
           v.sum += val; v.n++;
           if (val < v.min) v.min = val;
           if (val > v.max) v.max = val;
+          trxAllBkts[b] = (trxAllBkts[b] || 0) + 1;
           break;
         }
 
@@ -269,8 +279,9 @@ function parseK6CSV(filePath) {
         }).filter(Boolean);
       }
 
-      // TPS / RPS
-      const tpsAll = allBuckets.map(t => ({ t, v: reqBkts[t] ? reqBkts[t].ok + reqBkts[t].err : 0 }));
+      // TPS = transaction completions/s (from trx_duration — 1 per iteration)
+      // RPS = HTTP requests/s success only (from http_reqs)
+      const tpsAll = allBuckets.map(t => ({ t, v: trxAllBkts[t] || 0 }));
       const rpsAll = allBuckets.map(t => ({ t, v: reqBkts[t] ? reqBkts[t].ok : 0 }));
 
       // Dimension lists from trx_duration (most accurate) then fallback to txReqData
@@ -281,21 +292,21 @@ function parseK6CSV(filePath) {
       const apiKeys = Object.keys(apiData);
       const apis = [...new Set(apiKeys.map(k => k.split('|||')[1]))].filter(Boolean).sort();
 
-      // TPS/RPS by transaction (from http_reqs)
+      // TPS by transaction = completions/s from trx_duration counts
+      // RPS by transaction = successful http_reqs/s from http_reqs ok
       const tpsByTx = {}, rpsByTx = {};
       transactions.forEach(tx => {
-        // need per-bucket counts from http_reqs — rebuild from apiData
+        const td = txDurData[tx];
+        tpsByTx[tx] = allBuckets.map(t => ({ t, v: td?.bkts[t]?.n || 0 }));
+        // rpsByTx: aggregate ok per bucket from apiData for this tx
         const txApiKeys = apiKeys.filter(k => apiData[k].transaction === tx);
-        const txBktMap = {};
+        const txBktOk = {};
         txApiKeys.forEach(k => {
           Object.entries(apiData[k].tsBkts).forEach(([bt, v]) => {
-            if (!txBktMap[bt]) txBktMap[bt] = { ok:0, err:0 };
-            txBktMap[bt].ok  += v.ok;
-            txBktMap[bt].err += v.err;
+            txBktOk[bt] = (txBktOk[bt] || 0) + v.ok;
           });
         });
-        tpsByTx[tx] = allBuckets.map(t => ({ t, v: txBktMap[t] ? txBktMap[t].ok + txBktMap[t].err : 0 }));
-        rpsByTx[tx] = allBuckets.map(t => ({ t, v: txBktMap[t] ? txBktMap[t].ok : 0 }));
+        rpsByTx[tx] = allBuckets.map(t => ({ t, v: txBktOk[t] || 0 }));
       });
 
       // RPS by api
@@ -343,9 +354,9 @@ function parseK6CSV(filePath) {
       });
 
       // Stat cards
-      const totalReqs   = tpsAll.reduce((s, p) => s + p.v, 0);
       const successReqs = rpsAll.reduce((s, p) => s + p.v, 0);
-      const errorReqs   = totalReqs - successReqs;
+      const errorReqs   = allBuckets.reduce((s, t) => s + (reqBkts[t]?.err || 0), 0);
+      const totalReqs   = successReqs + errorReqs;
       const peakRps     = Math.max(0, ...rpsAll.map(p => p.v));
       const peakTps     = Math.max(0, ...tpsAll.map(p => p.v));
 
@@ -482,8 +493,14 @@ function parseK6CSV(filePath) {
         apiDurAll:  apiDurBkts,
         // trxDur: per-tx trx_duration buckets (for txTable recompute on filter)
         trxDur:     {},
+        // trxAllBkts: overall transaction completions per bucket (for TPS Overall recompute)
+        trxAllBkts,
+        // trxPerBkt: per-tx transaction completions per bucket (for TPS per-tx recompute)
+        trxPerBkt:  {},
         // txReq: per-tx http_reqs ok/err (for success/error estimate on filter)
         txReq:      txReqData,
+        // tx: per-tx, per-bucket ok (http_reqs success) — for RPS per-tx on filter
+        tx:         {},
         api:        {},
         checks:     chkBkts,
         checkNames: chkNameBkts,
@@ -496,14 +513,16 @@ function parseK6CSV(filePath) {
           min: isFinite(v.min)?v.min:0, max: isFinite(v.max)?v.max:0 };
       });
 
-      // trxDur per tx
+      // trxDur + trxPerBkt per tx
       transactions.forEach(tx => {
         cb.trxDur[tx] = {};
+        cb.trxPerBkt[tx] = {};
         const td = txDurData[tx];
         if (td) {
           Object.entries(td.bkts).forEach(([b, v]) => {
             cb.trxDur[tx][b] = { sum:v.sum, n:v.n,
               min: isFinite(v.min)?v.min:0, max: isFinite(v.max)?v.max:0 };
+            cb.trxPerBkt[tx][b] = v.n;
           });
         }
       });
@@ -513,6 +532,18 @@ function parseK6CSV(filePath) {
         Object.entries(item.tsBkts).forEach(([b, v]) => {
           cb.api[key].ts[b] = { ok:v.ok, err:v.err, sum:v.sum, n:v.n,
             min: isFinite(v.min)?v.min:0, max: isFinite(v.max)?v.max:0 };
+        });
+      });
+
+      // Build cb.tx — per-tx per-bucket ok aggregated from apiData (http_reqs success)
+      // Used by frontend recompute() for RPS per-tx when time filter is applied
+      Object.values(cb.api).forEach(item => {
+        const tx = item.transaction;
+        if (!cb.tx[tx]) cb.tx[tx] = {};
+        Object.entries(item.ts).forEach(([b, v]) => {
+          if (!cb.tx[tx][b]) cb.tx[tx][b] = { ok:0, err:0 };
+          cb.tx[tx][b].ok  += v.ok;
+          cb.tx[tx][b].err += v.err;
         });
       });
 
@@ -539,6 +570,8 @@ function parseK6CSV(filePath) {
         timingAvg, clientBuckets: cb,
         metricNames: Object.keys(tsBkts).sort(),
         transactions, apis,
+        groups: [...groupSet].sort(),
+        txToGroup,
         timeRange: { start: allBuckets[0]||0, end: allBuckets[allBuckets.length-1]||0 },
         totalRows,
       });
