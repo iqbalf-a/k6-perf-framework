@@ -52,7 +52,7 @@ if not exist "%K6_EXE%" (
 set K6_ARGS=run -e MODE=%MODE% -e VUS=%VUS% -e ITERATIONS=%ITERATIONS% --tag testid=%TESTID%
 
 if %FLAG_DASHBOARD%==1 set K6_ARGS=%K6_ARGS% --out web-dashboard
-if %FLAG_CSV%==1       if not exist "results" mkdir results
+if not exist "results" mkdir results
 if %FLAG_CSV%==1       set K6_ARGS=%K6_ARGS% --out csv=results\%TESTID%.csv
 if %FLAG_DEBUG%==1     set K6_ARGS=%K6_ARGS% --http-debug=full
 

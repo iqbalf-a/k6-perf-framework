@@ -78,20 +78,12 @@ function parseK6CSV(filePath) {
       const eapi = `COALESCE(regexp_extract(extra_tags,'api=([^&]*)',1),'')`;
       const etid = `COALESCE(regexp_extract(extra_tags,'testid=([^&]*)',1),'')`;
 
-      const [
-        metaRows,
-        reqRows,
-        httpDurBktRows,
-        httpDurStatRows,
-        trxDurBktRows,
-        trxDurStatRows,
-        trxCountRows,
-        apiDurRows,
-        checkRows,
-        timingRows,
-        vuRows,
-        tsRows,
-      ] = await Promise.all([
+      let metaRows, reqRows, httpDurBktRows, httpDurStatRows, trxDurBktRows,
+          trxDurStatRows, trxCountRows, apiDurRows, checkRows, timingRows, vuRows, tsRows;
+      try {
+        [metaRows, reqRows, httpDurBktRows, httpDurStatRows, trxDurBktRows,
+         trxDurStatRows, trxCountRows, apiDurRows, checkRows, timingRows, vuRows, tsRows,
+        ] = await Promise.all([
         // metadata: testid + row count — scan seluruh tabel tapi ringan
         sel(`SELECT MAX(${etid}) FILTER (WHERE extra_tags LIKE '%testid=%') AS testid,
                     COUNT(*) AS total_rows FROM k6`),
@@ -159,9 +151,11 @@ function parseK6CSV(filePath) {
         sel(`SELECT metric_name, bucket, SUM(val) AS sum, COUNT(*) AS n
              FROM k6 GROUP BY metric_name, bucket ORDER BY metric_name, bucket`),
       ]);
+      } finally {
+        db.close();
+      }
 
       console.log(`[k6] queries:      ${((Date.now()-t1)/1000).toFixed(1)}s`);
-      db.close();
       const t2 = Date.now();
 
       // ── Assemble ────────────────────────────────────────────────────────────
@@ -326,18 +320,10 @@ function parseK6CSV(filePath) {
       const tpsAll = allBuckets.map(t => ({ t, v: trxAllBkts[t] || 0 }));
       const rpsAll = allBuckets.map(t => ({ t, v: reqBkts[t] ? reqBkts[t].ok : 0 }));
 
-      const tpsByTx = {}, rpsByTx = {};
+      const tpsByTx = {};
       transactions.forEach(tx => {
         const bkts = txDurBkts[tx] || {};
         tpsByTx[tx] = allBuckets.map(t => ({ t, v: bkts[t]?.n || 0 }));
-        const txApiKeys = apiKeys.filter(k => apiData[k].transaction === tx);
-        const txBktOk = {};
-        txApiKeys.forEach(k => {
-          Object.entries(apiData[k].tsBkts).forEach(([bt, v]) => {
-            txBktOk[bt] = (txBktOk[bt] || 0) + v.ok;
-          });
-        });
-        rpsByTx[tx] = allBuckets.map(t => ({ t, v: txBktOk[t] || 0 }));
       });
 
       const rpsByApi = {};
@@ -544,24 +530,12 @@ function parseK6CSV(filePath) {
 
       TIMING.forEach(m => { cb.timing[m] = timBkts[m]; });
 
-      // lightweight summary
-      const summary = {};
-      Object.entries(tsBkts).forEach(([name, bktsObj]) => {
-        let sum=0, n=0, mn=Infinity, mx=-Infinity;
-        Object.values(bktsObj).forEach(v => {
-          sum+=v.sum; n+=v.n;
-          const avg=v.n?v.sum/v.n:0;
-          if(avg<mn)mn=avg; if(avg>mx)mx=avg;
-        });
-        summary[name] = { count:n, avg:n?sum/n:0, min:mn===Infinity?0:mn, max:mx===-Infinity?0:mx };
-      });
-
       console.log(`[k6] JS assembly:  ${((Date.now()-t2)/1000).toFixed(1)}s`);
       console.log(`[k6] total:        ${((Date.now()-t0)/1000).toFixed(1)}s`);
       return {
-        summary, timeSeries, statCards,
+        timeSeries, statCards,
         txTable, apiTable, checksTable, checksTimeSeries,
-        tpsAll, rpsAll, tpsByTx, rpsByTx, rpsByApi, allBuckets,
+        tpsAll, rpsAll, tpsByTx, rpsByApi, allBuckets,
         txResponseTime, txResponseTimeAll,
         apiResponseTime, apiResponseTimeAll,
         timingAvg, clientBuckets: cb,
@@ -580,12 +554,15 @@ function parseK6CSV(filePath) {
 
 // ── Routes ────────────────────────────────────────────────────────────────────
 app.post('/api/upload', upload.single('csvFile'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
   try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
     const result = await parseK6CSV(req.file.path);
-    try { fs.unlinkSync(req.file.path); } catch {}
     res.json({ success: true, ...result });
-  } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error(err); res.status(500).json({ error: err.message });
+  } finally {
+    try { fs.unlinkSync(req.file.path); } catch {}
+  }
 });
 
 app.post('/api/parse-path', async (req, res) => {

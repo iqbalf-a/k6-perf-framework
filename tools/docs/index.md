@@ -1,0 +1,25 @@
+---
+layout: home
+
+hero:
+  name: k6 Perf Framework
+  text: Load testing multi-BP untuk tim QA
+  tagline: Struktur siap pakai berbasis k6 — scenario, transaksi, metrics, dan observability dalam satu framework.
+  actions:
+    - theme: brand
+      text: Getting Started
+      link: /getting-started
+    - theme: alt
+      text: Lihat di GitHub
+      link: https://github.com/iqbalf-a/k6-perf-framework
+
+features:
+  - title: Multi-BP & Multi-Channel
+    details: Satu scenario bisa menjalankan beberapa Business Process sekaligus dengan distribusi VU otomatis. Setiap project punya parameter.config.js sendiri.
+  - title: Metrics Siap Pakai
+    details: trx_duration, trx_count_pass/fail, api_duration — semua terekam otomatis dengan tag transaction, group, dan api. Langsung bisa ditampilkan di Grafana atau k6 Dashboard.
+  - title: k6 Dashboard (tanpa Grafana)
+    details: Upload atau load file CSV hasil k6, semua panel ter-render dalam ~20 detik untuk file 1.8 GB. Tidak butuh Prometheus atau server eksternal.
+  - title: Extract & Batch
+    details: Ekstrak nilai dari response (JSONPath, header, regex) langsung ke session. Kirim beberapa request paralel dengan batch() tanpa boilerplate.
+---
