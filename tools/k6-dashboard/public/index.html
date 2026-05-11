@@ -4,9 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
 <title>k6 Dashboard</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@700;800&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="/vendor/chart.umd.min.js"></script>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 :root{
@@ -15,7 +13,7 @@
   --text:#dde1f0;--muted:#4a5070;
   --green:#39d98a;--red:#ff4c6a;--blue:#4f9dff;
   --orange:#ffaa3b;--purple:#a78bfa;--cyan:#22d3ee;--yellow:#fde047;
-  --mono:'JetBrains Mono',monospace;--display:'Syne',sans-serif;
+  --mono:Consolas,'Courier New',monospace;--display:'Arial Black',Arial,sans-serif;
 }
 body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:12px;line-height:1.5;min-height:100vh}
 
@@ -202,7 +200,11 @@ select:focus{border-color:var(--green)}
 </div>
 
 <!-- Loading -->
-<div id="loading"><div class="spinner"></div><div style="color:var(--muted);font-size:12px">Parsing CSV…</div></div>
+<div id="loading">
+  <div class="spinner"></div>
+  <div style="color:var(--muted);font-size:12px">Parsing CSV…</div>
+  <div id="loadTimer" style="color:var(--muted);font-size:11px;letter-spacing:.5px">0:00</div>
+</div>
 
 <!-- Dashboard -->
 <div id="dashboard">
@@ -213,7 +215,7 @@ select:focus{border-color:var(--green)}
       <span>Test ID: <strong id="topTestid">—</strong></span>
       <span>Rows: <strong id="topRows">—</strong></span>
       <span>Duration: <strong id="topDuration">—</strong></span>
-      <div class="badge">LOADED</div>
+      <div class="badge">LOADED · <span id="loadedIn">—</span></div>
     </div>
     <button class="btn-back" onclick="resetDash()">← Upload Baru</button>
   </div>
@@ -473,10 +475,26 @@ function uploadFile(f){
   const fd=new FormData(); fd.append('csvFile',f);
   fetch('/api/upload',{method:'POST',body:fd}).then(r=>r.json()).then(onData).catch(e=>showErr(e.message));
 }
+let _loadTimer=null, _loadStart=0;
 function setLoad(on){
   document.getElementById('uploadScreen').style.display=on?'none':'flex';
   document.getElementById('loading').style.display=on?'flex':'none';
   document.getElementById('dashboard').style.display='none';
+  if(on){
+    _loadStart=Date.now();
+    document.getElementById('loadTimer').textContent='0:00';
+    _loadTimer=setInterval(()=>{
+      const s=Math.floor((Date.now()-_loadStart)/1000);
+      document.getElementById('loadTimer').textContent=
+        Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');
+    },1000);
+  } else {
+    clearInterval(_loadTimer);
+    const s=Math.floor((Date.now()-_loadStart)/1000);
+    const elapsed=Math.floor(s/60)+':'+(s%60).toString().padStart(2,'0');
+    document.getElementById('loadedIn').textContent=elapsed+'s';
+    _loadTimer=null;
+  }
 }
 function showErr(msg){ setLoad(false); document.getElementById('uploadHint').textContent='❌ '+(msg||'Error'); }
 function resetDash(){
@@ -489,6 +507,7 @@ function resetDash(){
 }
 function onData(res){
   if(!res.success){showErr(res.error||'Parse error');return;}
+  setLoad(false);
   DATA=res; FLT=null; GRP='';
   initSlider();
   document.getElementById('uploadScreen').style.display='none';
@@ -707,7 +726,7 @@ function applyFilter(){
   setTimeout(()=>{
     FLT=recompute(tsOf(FS.posL),tsOf(FS.posR));
     renderAll();
-    // badge di-update oleh updateSliderUI() via renderAll, tidak perlu restore manual
+    updateSliderUI();
   },0);
 }
 

@@ -52,24 +52,31 @@ function parseK6CSV(filePath) {
       // Normalise path for DuckDB (forward slashes, escape single quotes)
       const fp = filePath.replace(/\\/g, '/').replace(/'/g, "''");
 
-      // Create a view with all derived columns — parsed once, queried N times
+      const t0 = Date.now();
+      // Load CSV into a real table — CSV dibaca sekali, extra_tags disimpan mentah
+      // Regex parsing dilakukan per-query hanya pada subset metric yang relevan
       await ddl(`
-        CREATE VIEW k6 AS
+        CREATE TABLE k6 AS
         SELECT
           metric_name,
-          CAST(timestamp AS BIGINT) * 1000                                        AS bucket,
-          TRY_CAST(metric_value AS DOUBLE)                                         AS val,
-          (expected_response = 'true')                                              AS is_ok,
-          COALESCE("group", '')                                                     AS grp,
-          COALESCE("check", '')                                                     AS chk,
-          COALESCE(regexp_extract(extra_tags, 'transaction=([^&]*)', 1), '')        AS tx,
-          COALESCE(regexp_extract(extra_tags, 'api=([^&]*)',         1), '')        AS api,
-          COALESCE(regexp_extract(extra_tags, 'testid=([^&]*)',      1), '')        AS testid
+          CAST(timestamp AS BIGINT) * 1000  AS bucket,
+          TRY_CAST(metric_value AS DOUBLE)   AS val,
+          (expected_response = 'true')        AS is_ok,
+          COALESCE("group", '')               AS grp,
+          COALESCE("check", '')               AS chk,
+          COALESCE(extra_tags, '')            AS extra_tags
         FROM read_csv_auto('${fp}', header=true, ignore_errors=true)
         WHERE metric_name IS NOT NULL AND metric_value IS NOT NULL
       `);
+      console.log(`[k6] CREATE TABLE: ${((Date.now()-t0)/1000).toFixed(1)}s`);
+      const t1 = Date.now();
 
       const timingIn = TIMING.map(m => `'${m}'`).join(',');
+
+      // Macro regex inline — tiap query hanya scan subset metric-nya sendiri
+      const etx  = `COALESCE(regexp_extract(extra_tags,'transaction=([^&]*)',1),'')`;
+      const eapi = `COALESCE(regexp_extract(extra_tags,'api=([^&]*)',1),'')`;
+      const etid = `COALESCE(regexp_extract(extra_tags,'testid=([^&]*)',1),'')`;
 
       const [
         metaRows,
@@ -85,74 +92,77 @@ function parseK6CSV(filePath) {
         vuRows,
         tsRows,
       ] = await Promise.all([
-        // metadata: testid + row count
-        sel(`SELECT MAX(testid) FILTER (WHERE testid != '') AS testid,
+        // metadata: testid + row count — scan seluruh tabel tapi ringan
+        sel(`SELECT MAX(${etid}) FILTER (WHERE extra_tags LIKE '%testid=%') AS testid,
                     COUNT(*) AS total_rows FROM k6`),
 
-        // http_reqs per bucket + tx + api + group
-        sel(`SELECT bucket, tx, api, grp,
+        // http_reqs — regex hanya pada ~subset rows metrik ini
+        sel(`SELECT bucket, ${etx} AS tx, ${eapi} AS api, grp,
                     SUM(CASE WHEN is_ok     THEN 1 ELSE 0 END) AS ok,
                     SUM(CASE WHEN NOT is_ok THEN 1 ELSE 0 END) AS err
              FROM k6 WHERE metric_name = 'http_reqs'
              GROUP BY bucket, tx, api, grp`),
 
-        // http_req_duration per bucket + api (for apiResponseTime + httpDur cb)
-        sel(`SELECT bucket, tx, api,
+        // http_req_duration per bucket + api
+        sel(`SELECT bucket, ${etx} AS tx, ${eapi} AS api,
                     SUM(val) AS sum, COUNT(*) AS n, MIN(val) AS mn, MAX(val) AS mx
              FROM k6 WHERE metric_name = 'http_req_duration'
              GROUP BY bucket, tx, api`),
 
-        // http_req_duration overall stats incl. percentiles
+        // http_req_duration overall stats — no tag needed
         sel(`SELECT COUNT(*) AS n, SUM(val) AS sum, MIN(val) AS mn, MAX(val) AS mx,
                     PERCENTILE_CONT(0.9)  WITHIN GROUP (ORDER BY val) AS p90,
                     PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY val) AS p95,
                     PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY val) AS p99
              FROM k6 WHERE metric_name = 'http_req_duration'`),
 
-        // trx_duration per bucket + tx (for TPS/RT time series)
-        sel(`SELECT bucket, tx, SUM(val) AS sum, COUNT(*) AS n, MIN(val) AS mn, MAX(val) AS mx
-             FROM k6 WHERE metric_name = 'trx_duration' AND tx != ''
+        // trx_duration per bucket + tx
+        sel(`SELECT bucket, ${etx} AS tx,
+                    SUM(val) AS sum, COUNT(*) AS n, MIN(val) AS mn, MAX(val) AS mx
+             FROM k6 WHERE metric_name = 'trx_duration' AND extra_tags LIKE '%transaction=%'
              GROUP BY bucket, tx`),
 
-        // trx_duration per tx overall — percentiles via DuckDB (replaces flat sort)
-        sel(`SELECT tx, COUNT(*) AS n, SUM(val) AS sum, MIN(val) AS mn, MAX(val) AS mx,
+        // trx_duration per tx overall — percentiles
+        sel(`SELECT ${etx} AS tx, COUNT(*) AS n, SUM(val) AS sum, MIN(val) AS mn, MAX(val) AS mx,
                     PERCENTILE_CONT(0.9)  WITHIN GROUP (ORDER BY val) AS p90,
                     PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY val) AS p95,
                     PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY val) AS p99
-             FROM k6 WHERE metric_name = 'trx_duration' AND tx != ''
+             FROM k6 WHERE metric_name = 'trx_duration' AND extra_tags LIKE '%transaction=%'
              GROUP BY tx`),
 
         // trx_count_pass / trx_count_fail per bucket + tx
-        sel(`SELECT metric_name, bucket, tx, SUM(val) AS total
+        sel(`SELECT metric_name, bucket, ${etx} AS tx, SUM(val) AS total
              FROM k6
              WHERE metric_name IN ('trx_count','trx_count_pass','trx_count_fail','trx_count_total')
-               AND tx != ''
+               AND extra_tags LIKE '%transaction=%'
              GROUP BY metric_name, bucket, tx`),
 
-        // api_duration overall per bucket
+        // api_duration overall per bucket — no tag needed
         sel(`SELECT bucket, SUM(val) AS sum, COUNT(*) AS n
              FROM k6 WHERE metric_name = 'api_duration'
              GROUP BY bucket`),
 
-        // checks per bucket + check name
+        // checks — chk sudah kolom langsung
         sel(`SELECT bucket, chk, SUM(val) AS pass, COUNT(*) AS total
              FROM k6 WHERE metric_name = 'checks'
              GROUP BY bucket, chk`),
 
-        // timing metrics per bucket
+        // timing metrics — no tag needed
         sel(`SELECT metric_name, bucket, SUM(val) AS sum, COUNT(*) AS n
              FROM k6 WHERE metric_name IN (${timingIn})
              GROUP BY metric_name, bucket`),
 
-        // vus max
+        // vus max — no tag needed
         sel(`SELECT MAX(val) AS vus_max FROM k6 WHERE metric_name IN ('vus','vus_max')`),
 
-        // time series: every metric per bucket
+        // time series — no tag needed
         sel(`SELECT metric_name, bucket, SUM(val) AS sum, COUNT(*) AS n
              FROM k6 GROUP BY metric_name, bucket ORDER BY metric_name, bucket`),
       ]);
 
+      console.log(`[k6] queries:      ${((Date.now()-t1)/1000).toFixed(1)}s`);
       db.close();
+      const t2 = Date.now();
 
       // ── Assemble ────────────────────────────────────────────────────────────
       const testid    = metaRows[0]?.testid    || '';
@@ -546,6 +556,8 @@ function parseK6CSV(filePath) {
         summary[name] = { count:n, avg:n?sum/n:0, min:mn===Infinity?0:mn, max:mx===-Infinity?0:mx };
       });
 
+      console.log(`[k6] JS assembly:  ${((Date.now()-t2)/1000).toFixed(1)}s`);
+      console.log(`[k6] total:        ${((Date.now()-t0)/1000).toFixed(1)}s`);
       return {
         summary, timeSeries, statCards,
         txTable, apiTable, checksTable, checksTimeSeries,
