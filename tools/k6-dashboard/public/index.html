@@ -773,19 +773,19 @@ function recompute(s,e){
     });
     vals.sort((a,b)=>a-b);
     const sample=n; // trx_duration count = iterations
-    // success/error
-    const tc=(cb.txCount||{})[tx];
-    let success,error;
-    if(tc&&(tc.total>0||tc.pass>0)){
-      const s=tc.total||tc.pass+tc.fail;
-      success=tc.pass; error=tc.fail;
-      // use trx_count sample if trxDur not available
-      const finalSample=sample||s;
-      return {transaction:tx,min:mn===Infinity?0:mn,avg:finalSample?sum/n:0,max:mx<0?0:mx,
+    // success/error — use per-bucket txCountBkts (time-range aware) to avoid rate > 100%
+    let success=0, error=0;
+    const bktCounts = cb.txCountBkts?.[tx]||{};
+    const hasBktCount = Object.keys(bktCounts).length > 0;
+    if(hasBktCount){
+      Object.entries(bktCounts).forEach(([t,v])=>{ if(!inR(t)) return; success+=v.pass; error+=v.fail; });
+      const bktSample = success + error;
+      const finalSample = sample || bktSample;
+      return {transaction:tx,min:mn===Infinity?0:mn,avg:finalSample&&n?sum/n:0,max:mx<0?0:mx,
         p90:pct(vals,.9),success,error,sample:finalSample,
         successRate:finalSample?parseFloat((success/finalSample*100).toFixed(1)):0};
     }
-    // estimate from http_reqs ratio
+    // fallback: estimate from http_reqs ratio
     const rd=(cb.txReq||{})[tx]||{ok:0,err:0};
     const total=rd.ok+rd.err;
     const errRatio=total>0?rd.err/total:0;

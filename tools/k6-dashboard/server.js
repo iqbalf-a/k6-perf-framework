@@ -1,9 +1,9 @@
-const express    = require('express');
-const multer     = require('multer');
-const { parse }  = require('csv-parse');
-const fs         = require('fs');
-const path       = require('path');
-const os         = require('os');
+const express = require('express');
+const multer  = require('multer');
+const fs      = require('fs');
+const path    = require('path');
+const os      = require('os');
+const duckdb  = require('duckdb');
 
 const app  = express();
 const PORT = process.env.PORT || 3000;
@@ -18,258 +18,159 @@ const storage = multer.diskStorage({
 const upload = multer({ storage, limits: { fileSize: 10 * 1024 * 1024 * 1024 } });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-function parseTags(str) {
-  const t = {};
-  if (!str) return t;
-  str.split('&').forEach(p => {
-    const i = p.indexOf('=');
-    if (i > 0) t[p.slice(0, i).trim()] = p.slice(i + 1).trim();
-  });
-  return t;
-}
-
 function pctSorted(arr, p) {
   if (!arr.length) return 0;
   return arr[Math.min(Math.floor(arr.length * p), arr.length - 1)] || 0;
 }
 
-function statsFromSorted(s) {
-  const n = s.length;
-  if (!n) return { count:0, sum:0, min:0, max:0, avg:0, p90:0, p95:0, p99:0 };
-  const sum = s.reduce((a, v) => a + v, 0);
-  return { count:n, sum, min:s[0], max:s[n-1], avg:sum/n,
-    p90:pctSorted(s,.9), p95:pctSorted(s,.95), p99:pctSorted(s,.99) };
-}
-
-// ── Streaming parser ───────────────────────────────────────────────────────────
+// ── DuckDB parser ─────────────────────────────────────────────────────────────
 function parseK6CSV(filePath) {
   return new Promise((resolve, reject) => {
-    const SZ  = 1000;
-    const bkt = ts => Math.floor(ts / SZ) * SZ;
+    const db = new duckdb.Database(':memory:');
 
-    const allBktSet = new Set();
+    // DDL on a dedicated setup connection
+    function ddl(sql) {
+      return new Promise((res, rej) => {
+        const conn = db.connect();
+        conn.run(sql, err => { conn.close(); err ? rej(err) : res(); });
+      });
+    }
 
-    // time series: metricName -> { bucket -> { sum, n } }
-    const tsBkts = {};
-
-    // http_reqs: bucket -> { ok, err }
-    const reqBkts = {};
-
-    // http_req_duration: bucket -> { sum, n, min, max }  + flat vals for pct
-    const durBkts = {};
-    const durVals = [];
-
-    // api_duration (per-API): global bucket -> { sum, n }  + flat vals
-    // Used ONLY for api response time charts, NOT for txTable
-    const apiDurBkts = {};
-    const apiDurVals = [];
-
-    // trx_duration (per-TRANSACTION iteration): the correct source for txTable duration
-    //   txDurData[tx] = { bkts:{ b->{ sum,n,min,max } }, vals:[] }
-    const txDurData = {};
-
-    // per-bucket overall transaction completions count (for TPS Overall)
-    const trxAllBkts = {};
-
-    // http_reqs per transaction: txReqData[tx] = { ok, err }
-    // Used for success/error count (before trx_count overrides)
-    const txReqData = {};
-
-    // per-api: 'tx|||api' -> { transaction, api, ok, err, tsBkts:{ b->{ ok,err,sum,n,min,max } } }
-    const apiData = {};
-
-    // trx_count custom metrics: tx -> { pass, fail, total }
-    const txCountData = {};
-
-    // group tags
-    const groupSet  = new Set();
-    const txToGroup = {};
-
-    // checks: bucket -> { pass, total }
-    const chkBkts = {};
-    const chkNameBkts = {};
-    let chkPass = 0, chkTotal = 0;
+    // Each SELECT gets its own connection → DuckDB runs them in parallel internally
+    function sel(sql) {
+      return new Promise((res, rej) => {
+        const conn = db.connect();
+        conn.all(sql, (err, rows) => { conn.close(); err ? rej(err) : res(rows || []); });
+      });
+    }
 
     const TIMING = ['http_req_duration','http_req_waiting','http_req_sending',
                     'http_req_receiving','http_req_blocked','http_req_connecting',
                     'http_req_tls_handshaking'];
-    const timBkts = {};
-    TIMING.forEach(m => { timBkts[m] = {}; });
 
-    let vusMax = 0, totalRows = 0, testid = '';
+    async function run() {
+      // Normalise path for DuckDB (forward slashes, escape single quotes)
+      const fp = filePath.replace(/\\/g, '/').replace(/'/g, "''");
 
-    // ── Per-row handler ───────────────────────────────────────────────────────
-    function onRow(row) {
-      const metricName = row.metric_name;
-      const ts  = parseInt(row.timestamp) * 1000;
-      const val = parseFloat(row.metric_value);
-      if (!metricName || isNaN(val) || isNaN(ts)) return;
-      totalRows++;
+      // Create a view with all derived columns — parsed once, queried N times
+      await ddl(`
+        CREATE VIEW k6 AS
+        SELECT
+          metric_name,
+          CAST(timestamp AS BIGINT) * 1000                                        AS bucket,
+          TRY_CAST(metric_value AS DOUBLE)                                         AS val,
+          (expected_response = 'true')                                              AS is_ok,
+          COALESCE("group", '')                                                     AS grp,
+          COALESCE("check", '')                                                     AS chk,
+          COALESCE(regexp_extract(extra_tags, 'transaction=([^&]*)', 1), '')        AS tx,
+          COALESCE(regexp_extract(extra_tags, 'api=([^&]*)',         1), '')        AS api,
+          COALESCE(regexp_extract(extra_tags, 'testid=([^&]*)',      1), '')        AS testid
+        FROM read_csv_auto('${fp}', header=true, ignore_errors=true)
+        WHERE metric_name IS NOT NULL AND metric_value IS NOT NULL
+      `);
 
-      const b = bkt(ts);
-      allBktSet.add(b);
+      const timingIn = TIMING.map(m => `'${m}'`).join(',');
 
-      // time series for every metric
-      if (!tsBkts[metricName]) tsBkts[metricName] = {};
-      const tsb = tsBkts[metricName];
-      if (!tsb[b]) tsb[b] = { sum:0, n:0 };
-      tsb[b].sum += val; tsb[b].n++;
+      const [
+        metaRows,
+        reqRows,
+        httpDurBktRows,
+        httpDurStatRows,
+        trxDurBktRows,
+        trxDurStatRows,
+        trxCountRows,
+        apiDurRows,
+        checkRows,
+        timingRows,
+        vuRows,
+        tsRows,
+      ] = await Promise.all([
+        // metadata: testid + row count
+        sel(`SELECT MAX(testid) FILTER (WHERE testid != '') AS testid,
+                    COUNT(*) AS total_rows FROM k6`),
 
-      let et = null;
-      const getEt = () => { if (!et) et = parseTags(row.extra_tags); return et; };
-      const isOk  = row.expected_response === 'true';
+        // http_reqs per bucket + tx + api + group
+        sel(`SELECT bucket, tx, api, grp,
+                    SUM(CASE WHEN is_ok     THEN 1 ELSE 0 END) AS ok,
+                    SUM(CASE WHEN NOT is_ok THEN 1 ELSE 0 END) AS err
+             FROM k6 WHERE metric_name = 'http_reqs'
+             GROUP BY bucket, tx, api, grp`),
 
-      switch (metricName) {
+        // http_req_duration per bucket + api (for apiResponseTime + httpDur cb)
+        sel(`SELECT bucket, tx, api,
+                    SUM(val) AS sum, COUNT(*) AS n, MIN(val) AS mn, MAX(val) AS mx
+             FROM k6 WHERE metric_name = 'http_req_duration'
+             GROUP BY bucket, tx, api`),
 
-        // ── http_reqs ────────────────────────────────────────────────────────
-        case 'http_reqs': {
-          const { transaction:tx, api, testid:tid } = getEt();
-          if (tid && !testid) testid = tid;
-          const group = row.group || '';
-          if (group) { groupSet.add(group); if (tx && !txToGroup[tx]) txToGroup[tx] = group; }
+        // http_req_duration overall stats incl. percentiles
+        sel(`SELECT COUNT(*) AS n, SUM(val) AS sum, MIN(val) AS mn, MAX(val) AS mx,
+                    PERCENTILE_CONT(0.9)  WITHIN GROUP (ORDER BY val) AS p90,
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY val) AS p95,
+                    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY val) AS p99
+             FROM k6 WHERE metric_name = 'http_req_duration'`),
 
-          if (!reqBkts[b]) reqBkts[b] = { ok:0, err:0 };
-          if (isOk) reqBkts[b].ok++; else reqBkts[b].err++;
+        // trx_duration per bucket + tx (for TPS/RT time series)
+        sel(`SELECT bucket, tx, SUM(val) AS sum, COUNT(*) AS n, MIN(val) AS mn, MAX(val) AS mx
+             FROM k6 WHERE metric_name = 'trx_duration' AND tx != ''
+             GROUP BY bucket, tx`),
 
-          if (tx) {
-            // track ok/err per tx (for success rate when trx_count not available)
-            if (!txReqData[tx]) txReqData[tx] = { ok:0, err:0 };
-            if (isOk) txReqData[tx].ok++; else txReqData[tx].err++;
-          }
-          if (api) {
-            const key = `${tx||''}|||${api}`;
-            if (!apiData[key]) apiData[key] = { transaction:tx||'', api, ok:0, err:0, tsBkts:{} };
-            if (isOk) apiData[key].ok++; else apiData[key].err++;
-            const ab = apiData[key].tsBkts;
-            if (!ab[b]) ab[b] = { ok:0, err:0, sum:0, n:0, min:Infinity, max:-Infinity };
-            if (isOk) ab[b].ok++; else ab[b].err++;
-          }
-          break;
-        }
+        // trx_duration per tx overall — percentiles via DuckDB (replaces flat sort)
+        sel(`SELECT tx, COUNT(*) AS n, SUM(val) AS sum, MIN(val) AS mn, MAX(val) AS mx,
+                    PERCENTILE_CONT(0.9)  WITHIN GROUP (ORDER BY val) AS p90,
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY val) AS p95,
+                    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY val) AS p99
+             FROM k6 WHERE metric_name = 'trx_duration' AND tx != ''
+             GROUP BY tx`),
 
-        // ── http_req_duration ────────────────────────────────────────────────
-        case 'http_req_duration': {
-          const { transaction:tx, api, testid:tid } = getEt();
-          if (tid && !testid) testid = tid;
+        // trx_count_pass / trx_count_fail per bucket + tx
+        sel(`SELECT metric_name, bucket, tx, SUM(val) AS total
+             FROM k6
+             WHERE metric_name IN ('trx_count','trx_count_pass','trx_count_fail','trx_count_total')
+               AND tx != ''
+             GROUP BY metric_name, bucket, tx`),
 
-          if (!durBkts[b]) durBkts[b] = { sum:0, n:0, min:Infinity, max:-Infinity };
-          durBkts[b].sum += val; durBkts[b].n++;
-          if (val < durBkts[b].min) durBkts[b].min = val;
-          if (val > durBkts[b].max) durBkts[b].max = val;
-          durVals.push(val);
+        // api_duration overall per bucket
+        sel(`SELECT bucket, SUM(val) AS sum, COUNT(*) AS n
+             FROM k6 WHERE metric_name = 'api_duration'
+             GROUP BY bucket`),
 
-          if (api) {
-            const key = `${tx||''}|||${api}`;
-            if (!apiData[key]) apiData[key] = { transaction:tx||'', api, ok:0, err:0, tsBkts:{} };
-            const ab = apiData[key].tsBkts;
-            if (!ab[b]) ab[b] = { ok:0, err:0, sum:0, n:0, min:Infinity, max:-Infinity };
-            ab[b].sum += val; ab[b].n++;
-            if (val < ab[b].min) ab[b].min = val;
-            if (val > ab[b].max) ab[b].max = val;
-          }
-          break;
-        }
+        // checks per bucket + check name
+        sel(`SELECT bucket, chk, SUM(val) AS pass, COUNT(*) AS total
+             FROM k6 WHERE metric_name = 'checks'
+             GROUP BY bucket, chk`),
 
-        // ── api_duration (per-API call) ──────────────────────────────────────
-        // Used ONLY for "API Response Time" charts, NOT for txTable
-        case 'api_duration': {
-          const { testid:tid } = getEt();
-          if (tid && !testid) testid = tid;
+        // timing metrics per bucket
+        sel(`SELECT metric_name, bucket, SUM(val) AS sum, COUNT(*) AS n
+             FROM k6 WHERE metric_name IN (${timingIn})
+             GROUP BY metric_name, bucket`),
 
-          if (!apiDurBkts[b]) apiDurBkts[b] = { sum:0, n:0 };
-          apiDurBkts[b].sum += val; apiDurBkts[b].n++;
-          apiDurVals.push(val);
-          break;
-        }
+        // vus max
+        sel(`SELECT MAX(val) AS vus_max FROM k6 WHERE metric_name IN ('vus','vus_max')`),
 
-        // ── trx_duration (per-TRANSACTION iteration) ─────────────────────────
-        // This is the CORRECT metric for txTable: min/avg/max/p90/sample
-        // 1 entry per transaction iteration, value = full transaction duration
-        case 'trx_duration': {
-          const { transaction:tx, testid:tid } = getEt();
-          if (tid && !testid) testid = tid;
-          if (!tx) break;
+        // time series: every metric per bucket
+        sel(`SELECT metric_name, bucket, SUM(val) AS sum, COUNT(*) AS n
+             FROM k6 GROUP BY metric_name, bucket ORDER BY metric_name, bucket`),
+      ]);
 
-          if (!txDurData[tx]) txDurData[tx] = { bkts:{}, vals:[] };
-          txDurData[tx].vals.push(val);
-          if (!txDurData[tx].bkts[b]) txDurData[tx].bkts[b] = { sum:0, n:0, min:Infinity, max:-Infinity };
-          const v = txDurData[tx].bkts[b];
-          v.sum += val; v.n++;
-          if (val < v.min) v.min = val;
-          if (val > v.max) v.max = val;
-          trxAllBkts[b] = (trxAllBkts[b] || 0) + 1;
-          break;
-        }
+      db.close();
 
-        // ── trx_count custom metrics ─────────────────────────────────────────
-        case 'trx_count':
-        case 'trx_count_total': {
-          const { transaction:tx, testid:tid } = getEt();
-          if (tid && !testid) testid = tid;
-          if (tx) {
-            if (!txCountData[tx]) txCountData[tx] = { pass:0, fail:0, total:0 };
-            txCountData[tx].total += val;
-          }
-          break;
-        }
-        case 'trx_count_pass': {
-          const { transaction:tx, testid:tid } = getEt();
-          if (tid && !testid) testid = tid;
-          if (tx) {
-            if (!txCountData[tx]) txCountData[tx] = { pass:0, fail:0, total:0 };
-            txCountData[tx].pass += val;
-          }
-          break;
-        }
-        case 'trx_count_fail': {
-          const { transaction:tx, testid:tid } = getEt();
-          if (tid && !testid) testid = tid;
-          if (tx) {
-            if (!txCountData[tx]) txCountData[tx] = { pass:0, fail:0, total:0 };
-            txCountData[tx].fail += val;
-          }
-          break;
-        }
+      // ── Assemble ────────────────────────────────────────────────────────────
+      const testid    = metaRows[0]?.testid    || '';
+      const totalRows = Number(metaRows[0]?.total_rows || 0);
+      const vusMax    = Number(vuRows[0]?.vus_max      || 0);
 
-        // ── checks ───────────────────────────────────────────────────────────
-        case 'checks': {
-          const { testid:tid } = getEt();
-          if (tid && !testid) testid = tid;
-          if (!chkBkts[b]) chkBkts[b] = { pass:0, total:0 };
-          chkBkts[b].total++; chkTotal++;
-          if (val === 1) { chkBkts[b].pass++; chkPass++; }
-          const check = row.check || '';
-          if (check) {
-            if (!chkNameBkts[check]) chkNameBkts[check] = {};
-            if (!chkNameBkts[check][b]) chkNameBkts[check][b] = { pass:0, total:0 };
-            chkNameBkts[check][b].total++;
-            if (val === 1) chkNameBkts[check][b].pass++;
-          }
-          break;
-        }
-
-        case 'vus':
-        case 'vus_max':
-          vusMax = Math.max(vusMax, val);
-          if (!testid) { const { testid:tid } = getEt(); if (tid) testid = tid; }
-          break;
-      }
-
-      // timing metrics
-      if (timBkts[metricName]) {
-        const tm = timBkts[metricName];
-        if (!tm[b]) tm[b] = { sum:0, n:0 };
-        tm[b].sum += val; tm[b].n++;
-      }
-
-      if (!testid) { const { testid:tid } = getEt(); if (tid) testid = tid; }
-    }
-
-    // ── Finalize ──────────────────────────────────────────────────────────────
-    function finalize() {
+      // All buckets from time-series scan
+      const allBktSet = new Set();
+      tsRows.forEach(r => allBktSet.add(Number(r.bucket)));
       const allBuckets = [...allBktSet].sort((a, b) => a - b);
 
       // time series
+      const tsBkts = {};
+      tsRows.forEach(r => {
+        const m = r.metric_name, b = Number(r.bucket);
+        if (!tsBkts[m]) tsBkts[m] = {};
+        tsBkts[m][b] = { sum: Number(r.sum), n: Number(r.n) };
+      });
       const timeSeries = {};
       for (const [name, bktsObj] of Object.entries(tsBkts)) {
         timeSeries[name] = allBuckets.map(t => {
@@ -279,26 +180,146 @@ function parseK6CSV(filePath) {
         }).filter(Boolean);
       }
 
-      // TPS = transaction completions/s (from trx_duration — 1 per iteration)
-      // RPS = HTTP requests/s success only (from http_reqs)
-      const tpsAll = allBuckets.map(t => ({ t, v: trxAllBkts[t] || 0 }));
-      const rpsAll = allBuckets.map(t => ({ t, v: reqBkts[t] ? reqBkts[t].ok : 0 }));
+      // reqBkts + txReqData + apiData + groups
+      const reqBkts   = {};
+      const txReqData = {};
+      const apiData   = {};
+      const groupSet  = new Set();
+      const txToGroup = {};
 
-      // Dimension lists from trx_duration (most accurate) then fallback to txReqData
+      reqRows.forEach(r => {
+        const b = Number(r.bucket), ok = Number(r.ok), err = Number(r.err);
+        const tx = r.tx || '', api = r.api || '', grp = r.grp || '';
+
+        if (!reqBkts[b]) reqBkts[b] = { ok:0, err:0 };
+        reqBkts[b].ok += ok; reqBkts[b].err += err;
+
+        if (grp) { groupSet.add(grp); if (tx && !txToGroup[tx]) txToGroup[tx] = grp; }
+
+        if (tx) {
+          if (!txReqData[tx]) txReqData[tx] = { ok:0, err:0 };
+          txReqData[tx].ok += ok; txReqData[tx].err += err;
+        }
+        if (api) {
+          const key = `${tx}|||${api}`;
+          if (!apiData[key]) apiData[key] = { transaction:tx, api, ok:0, err:0, tsBkts:{} };
+          apiData[key].ok += ok; apiData[key].err += err;
+          if (!apiData[key].tsBkts[b]) apiData[key].tsBkts[b] = { ok:0, err:0, sum:0, n:0, min:Infinity, max:-Infinity };
+          apiData[key].tsBkts[b].ok += ok; apiData[key].tsBkts[b].err += err;
+        }
+      });
+
+      // http_req_duration per bucket → apiData response time + durBkts for cb
+      const durBkts = {};
+      httpDurBktRows.forEach(r => {
+        const b = Number(r.bucket), tx = r.tx || '', api = r.api || '';
+        if (!durBkts[b]) durBkts[b] = { sum:0, n:0, min:Infinity, max:-Infinity };
+        durBkts[b].sum += Number(r.sum); durBkts[b].n += Number(r.n);
+        if (Number(r.mn) < durBkts[b].min) durBkts[b].min = Number(r.mn);
+        if (Number(r.mx) > durBkts[b].max) durBkts[b].max = Number(r.mx);
+        if (api) {
+          const key = `${tx}|||${api}`;
+          if (!apiData[key]) apiData[key] = { transaction:tx, api, ok:0, err:0, tsBkts:{} };
+          if (!apiData[key].tsBkts[b]) apiData[key].tsBkts[b] = { ok:0, err:0, sum:0, n:0, min:Infinity, max:-Infinity };
+          const v = apiData[key].tsBkts[b];
+          v.sum += Number(r.sum); v.n += Number(r.n);
+          if (Number(r.mn) < v.min) v.min = Number(r.mn);
+          if (Number(r.mx) > v.max) v.max = Number(r.mx);
+        }
+      });
+
+      // http_req_duration overall stats
+      const ds = httpDurStatRows[0] || {};
+      const durStats = {
+        n: Number(ds.n || 0), avg: Number(ds.n) ? Number(ds.sum) / Number(ds.n) : 0,
+        min: Number(ds.mn || 0), max: Number(ds.mx || 0),
+        p90: Number(ds.p90 || 0), p95: Number(ds.p95 || 0), p99: Number(ds.p99 || 0),
+      };
+
+      // trx_duration: bucket data + per-tx stats
+      const txDurBkts  = {};   // tx → bucket → {sum,n,min,max}
+      const trxAllBkts = {};   // bucket → total trx completions (for TPS overall)
+
+      trxDurBktRows.forEach(r => {
+        const tx = r.tx, b = Number(r.bucket), n = Number(r.n);
+        if (!txDurBkts[tx]) txDurBkts[tx] = {};
+        txDurBkts[tx][b] = { sum: Number(r.sum), n, min: Number(r.mn), max: Number(r.mx) };
+        trxAllBkts[b] = (trxAllBkts[b] || 0) + n;
+      });
+
+      const txDurStats = {};   // tx → { n, avg, mn, mx, p90 }
+      trxDurStatRows.forEach(r => {
+        const n = Number(r.n);
+        txDurStats[r.tx] = {
+          n, avg: n ? Number(r.sum) / n : 0,
+          mn: Number(r.mn), mx: Number(r.mx),
+          p90: Number(r.p90 || 0),
+        };
+      });
+
+      // trx_count per tx + per bucket
+      const txCountData = {};
+      const txCountBkts = {};
+      trxCountRows.forEach(r => {
+        const tx = r.tx, b = Number(r.bucket), total = Number(r.total), mn = r.metric_name;
+        if (!txCountData[tx]) txCountData[tx] = { pass:0, fail:0, total:0 };
+        if (!txCountBkts[tx]) txCountBkts[tx] = {};
+        if (!txCountBkts[tx][b]) txCountBkts[tx][b] = { pass:0, fail:0 };
+        if (mn === 'trx_count' || mn === 'trx_count_total') txCountData[tx].total += total;
+        else if (mn === 'trx_count_pass') { txCountData[tx].pass += total; txCountBkts[tx][b].pass += total; }
+        else if (mn === 'trx_count_fail') { txCountData[tx].fail += total; txCountBkts[tx][b].fail += total; }
+      });
+
+      // api_duration overall
+      const apiDurBkts = {};
+      let apiDurSum = 0, apiDurN = 0;
+      apiDurRows.forEach(r => {
+        const b = Number(r.bucket), sum = Number(r.sum), n = Number(r.n);
+        apiDurBkts[b] = { sum, n };
+        apiDurSum += sum; apiDurN += n;
+      });
+
+      // checks
+      const chkBkts     = {};
+      const chkNameBkts = {};
+      let chkPass = 0, chkTotal = 0;
+      checkRows.forEach(r => {
+        const b = Number(r.bucket), pass = Number(r.pass), total = Number(r.total);
+        if (!chkBkts[b]) chkBkts[b] = { pass:0, total:0 };
+        chkBkts[b].pass += pass; chkBkts[b].total += total;
+        chkPass += pass; chkTotal += total;
+        const name = r.chk;
+        if (name) {
+          if (!chkNameBkts[name]) chkNameBkts[name] = {};
+          if (!chkNameBkts[name][b]) chkNameBkts[name][b] = { pass:0, total:0 };
+          chkNameBkts[name][b].pass += pass; chkNameBkts[name][b].total += total;
+        }
+      });
+
+      // timing metrics
+      const timBkts = {};
+      TIMING.forEach(m => { timBkts[m] = {}; });
+      timingRows.forEach(r => {
+        const m = r.metric_name, b = Number(r.bucket);
+        if (timBkts[m]) timBkts[m][b] = { sum: Number(r.sum), n: Number(r.n) };
+      });
+
+      // ── Dimension lists ─────────────────────────────────────────────────────
       const transactions = [...new Set([
-        ...Object.keys(txDurData),
+        ...Object.keys(txDurStats),
         ...Object.keys(txReqData),
       ])].sort();
       const apiKeys = Object.keys(apiData);
       const apis = [...new Set(apiKeys.map(k => k.split('|||')[1]))].filter(Boolean).sort();
 
-      // TPS by transaction = completions/s from trx_duration counts
-      // RPS by transaction = successful http_reqs/s from http_reqs ok
+      // ── TPS / RPS ───────────────────────────────────────────────────────────
+      const tpsAll = allBuckets.map(t => ({ t, v: trxAllBkts[t] || 0 }));
+      const rpsAll = allBuckets.map(t => ({ t, v: reqBkts[t] ? reqBkts[t].ok : 0 }));
+
       const tpsByTx = {}, rpsByTx = {};
       transactions.forEach(tx => {
-        const td = txDurData[tx];
-        tpsByTx[tx] = allBuckets.map(t => ({ t, v: td?.bkts[t]?.n || 0 }));
-        // rpsByTx: aggregate ok per bucket from apiData for this tx
+        const bkts = txDurBkts[tx] || {};
+        tpsByTx[tx] = allBuckets.map(t => ({ t, v: bkts[t]?.n || 0 }));
         const txApiKeys = apiKeys.filter(k => apiData[k].transaction === tx);
         const txBktOk = {};
         txApiKeys.forEach(k => {
@@ -309,17 +330,18 @@ function parseK6CSV(filePath) {
         rpsByTx[tx] = allBuckets.map(t => ({ t, v: txBktOk[t] || 0 }));
       });
 
-      // RPS by api
       const rpsByApi = {};
       apis.forEach(api => {
         const keys = apiKeys.filter(k => k.endsWith('|||' + api));
-        rpsByApi[api] = allBuckets.map(t => ({ t, v: keys.reduce((s, k) => s + (apiData[k].tsBkts[t]?.ok || 0), 0) }));
+        rpsByApi[api] = allBuckets.map(t => ({
+          t, v: keys.reduce((s, k) => s + (apiData[k].tsBkts[t]?.ok || 0), 0)
+        }));
       });
 
-      // Transaction response time from trx_duration buckets
+      // ── Response time series ────────────────────────────────────────────────
       const txRtAllBkts = {};
-      Object.values(txDurData).forEach(td => {
-        Object.entries(td.bkts).forEach(([bt, v]) => {
+      Object.values(txDurBkts).forEach(bktsObj => {
+        Object.entries(bktsObj).forEach(([bt, v]) => {
           if (!txRtAllBkts[bt]) txRtAllBkts[bt] = { sum:0, n:0 };
           txRtAllBkts[bt].sum += v.sum; txRtAllBkts[bt].n += v.n;
         });
@@ -329,19 +351,14 @@ function parseK6CSV(filePath) {
       });
       const txResponseTime = {};
       transactions.forEach(tx => {
-        const td = txDurData[tx];
-        if (td) {
-          txResponseTime[tx] = allBuckets.map(t => {
-            const v = td.bkts[t]; return { t, v: v && v.n ? v.sum / v.n : null };
-          });
-        } else {
-          txResponseTime[tx] = allBuckets.map(t => ({ t, v: null }));
-        }
+        const bkts = txDurBkts[tx];
+        txResponseTime[tx] = allBuckets.map(t => {
+          const v = bkts?.[t]; return { t, v: v && v.n ? v.sum / v.n : null };
+        });
       });
 
-      // API response time from http_req_duration
       const apiResponseTimeAll = allBuckets.map(t => {
-        const v = timBkts['http_req_duration'][t]; return { t, v: v && v.n ? v.sum / v.n : null };
+        const v = durBkts[t]; return { t, v: v && v.n ? v.sum / v.n : null };
       });
       const apiResponseTime = {};
       apis.forEach(api => {
@@ -353,55 +370,37 @@ function parseK6CSV(filePath) {
         });
       });
 
-      // Stat cards
+      // ── Stat cards ──────────────────────────────────────────────────────────
       const successReqs = rpsAll.reduce((s, p) => s + p.v, 0);
       const errorReqs   = allBuckets.reduce((s, t) => s + (reqBkts[t]?.err || 0), 0);
       const totalReqs   = successReqs + errorReqs;
       const peakRps     = Math.max(0, ...rpsAll.map(p => p.v));
       const peakTps     = Math.max(0, ...tpsAll.map(p => p.v));
 
-      durVals.sort((a, b) => a - b);
-      const durStats = statsFromSorted(durVals);
-      apiDurVals.sort((a, b) => a - b);
-      const apiDurStats = statsFromSorted(apiDurVals);
-      const checksSuccessRate = chkTotal ? parseFloat((chkPass / chkTotal * 100).toFixed(1)) : 0;
-
       const statCards = {
         totalReqs, successReqs, errorReqs,
-        errorPct: totalReqs ? parseFloat((errorReqs / totalReqs * 100).toFixed(2)) : 0,
+        errorPct:     totalReqs ? parseFloat((errorReqs / totalReqs * 100).toFixed(2)) : 0,
         peakRps, peakTps,
-        avgDuration: durStats.avg,  p90Duration: durStats.p90,
-        p95Duration: durStats.p95,  p99Duration: durStats.p99,
-        maxDuration: durStats.max,  minDuration: durStats.min,
-        avgApiDur: apiDurStats.avg, p90ApiDur: apiDurStats.p90,
-        checksSuccessRate, vusMax, testid,
+        avgDuration:  durStats.avg, p90Duration: durStats.p90,
+        p95Duration:  durStats.p95, p99Duration: durStats.p99,
+        maxDuration:  durStats.max, minDuration: durStats.min,
+        avgApiDur:    apiDurN ? apiDurSum / apiDurN : 0,
+        p90ApiDur:    0,
+        checksSuccessRate: chkTotal ? parseFloat((chkPass / chkTotal * 100).toFixed(1)) : 0,
+        vusMax, testid,
       };
 
-      // ── TX table ──────────────────────────────────────────────────────────
-      // Duration: from trx_duration (1 per iteration) — CORRECT
-      // Sample:   count of trx_duration entries
-      // Success/Error: from trx_count_pass/fail → else estimate from http_reqs ratio
+      // ── TX table ────────────────────────────────────────────────────────────
       const txTable = transactions.map(tx => {
-        const td = txDurData[tx];
-
+        const ts = txDurStats[tx];
         let mn, mx, avg, p90, sample, success, error;
 
-        if (td && td.vals.length > 0) {
-          // ── Have trx_duration data — accurate ────────────────────────────
-          const sorted = [...td.vals].sort((a, b) => a - b);
-          const n   = sorted.length;
-          const sum = sorted.reduce((a, v) => a + v, 0);
-          mn   = sorted[0];
-          mx   = sorted[n - 1];
-          avg  = sum / n;
-          p90  = pctSorted(sorted, .9);
-          // sample = number of trx_duration entries = number of iterations
-          sample = n;
+        if (ts && ts.n > 0) {
+          mn = ts.mn; mx = ts.mx; avg = ts.avg; p90 = ts.p90; sample = ts.n;
         } else {
-          // ── No trx_duration — fallback to api_duration bucket avgs ───────
-          // (legacy path, less accurate)
-          const bktAvgs = [];
+          // fallback: estimate from api duration buckets
           let bMn=Infinity, bMx=-Infinity, bSum=0, bN=0;
+          const bktAvgs = [];
           const txApiKeys = apiKeys.filter(k => apiData[k].transaction === tx);
           txApiKeys.forEach(k => {
             Object.values(apiData[k].tsBkts).forEach(v => {
@@ -411,25 +410,21 @@ function parseK6CSV(filePath) {
             });
           });
           bktAvgs.sort((a, b) => a - b);
-          const numApis = Math.max(txApiKeys.length, 1);
-          mn  = bMn === Infinity  ? 0 : bMn;
-          mx  = bMx === -Infinity ? 0 : bMx;
+          mn = bMn === Infinity  ? 0 : bMn;
+          mx = bMx === -Infinity ? 0 : bMx;
           avg = bN ? bSum / bN : 0;
           p90 = pctSorted(bktAvgs, .9);
-          sample = bN ? Math.round(bN / numApis) : 0;
+          sample = bN ? Math.round(bN / Math.max(txApiKeys.length, 1)) : 0;
         }
 
-        // success / error counts
         const tc = txCountData[tx];
         if (tc && (tc.total > 0 || tc.pass > 0)) {
-          success = tc.pass;
-          error   = tc.fail;
+          success = tc.pass; error = tc.fail;
           sample  = tc.total || tc.pass + tc.fail;
         } else if (sample > 0) {
-          // estimate from http_reqs ratio
           const rd = txReqData[tx] || { ok:0, err:0 };
-          const total = rd.ok + rd.err;
-          const errRatio = total > 0 ? rd.err / total : 0;
+          const tot = rd.ok + rd.err;
+          const errRatio = tot > 0 ? rd.err / tot : 0;
           error   = Math.round(sample * errRatio);
           success = sample - error;
         } else {
@@ -437,14 +432,13 @@ function parseK6CSV(filePath) {
         }
 
         return {
-          transaction: tx,
-          min: mn, avg, max: mx, p90,
+          transaction: tx, min: mn, avg, max: mx, p90,
           success, error, sample,
           successRate: sample ? parseFloat((success / sample * 100).toFixed(1)) : 0,
         };
       });
 
-      // ── API table ─────────────────────────────────────────────────────────
+      // ── API table ───────────────────────────────────────────────────────────
       const apiTable = Object.values(apiData).map(item => {
         let mn = Infinity, mx = -Infinity, sum = 0, n = 0;
         const bktAvgs = [];
@@ -466,7 +460,7 @@ function parseK6CSV(filePath) {
         };
       }).sort((a, b) => a.transaction.localeCompare(b.transaction) || a.api.localeCompare(b.api));
 
-      // Checks table
+      // ── Checks ──────────────────────────────────────────────────────────────
       const checksTable = Object.entries(chkNameBkts).map(([name, nb]) => {
         let pass = 0, total = 0;
         Object.values(nb).forEach(v => { pass += v.pass; total += v.total; });
@@ -478,7 +472,7 @@ function parseK6CSV(filePath) {
         .sort(([a], [b]) => Number(a) - Number(b))
         .map(([t, v]) => ({ t: Number(t), v: v.total ? parseFloat((v.pass / v.total * 100).toFixed(1)) : 0 }));
 
-      // Timing avg
+      // ── Timing ──────────────────────────────────────────────────────────────
       const timingAvg = {};
       TIMING.forEach(m => {
         const bktsObj = timBkts[m]; let sum = 0, n = 0;
@@ -486,26 +480,22 @@ function parseK6CSV(filePath) {
         timingAvg[m] = { all: { avg: n ? sum / n : 0 } };
       });
 
-      // ── clientBuckets for time-range slider ───────────────────────────────
+      // ── clientBuckets (for time-range slider recompute) ─────────────────────
       const cb = {
         httpReqs:   reqBkts,
         httpDur:    {},
         apiDurAll:  apiDurBkts,
-        // trxDur: per-tx trx_duration buckets (for txTable recompute on filter)
         trxDur:     {},
-        // trxAllBkts: overall transaction completions per bucket (for TPS Overall recompute)
         trxAllBkts,
-        // trxPerBkt: per-tx transaction completions per bucket (for TPS per-tx recompute)
         trxPerBkt:  {},
-        // txReq: per-tx http_reqs ok/err (for success/error estimate on filter)
         txReq:      txReqData,
-        // tx: per-tx, per-bucket ok (http_reqs success) — for RPS per-tx on filter
         tx:         {},
         api:        {},
         checks:     chkBkts,
         checkNames: chkNameBkts,
         timing:     {},
         txCount:    txCountData,
+        txCountBkts,
       };
 
       Object.entries(durBkts).forEach(([b, v]) => {
@@ -513,18 +503,15 @@ function parseK6CSV(filePath) {
           min: isFinite(v.min)?v.min:0, max: isFinite(v.max)?v.max:0 };
       });
 
-      // trxDur + trxPerBkt per tx
       transactions.forEach(tx => {
         cb.trxDur[tx] = {};
         cb.trxPerBkt[tx] = {};
-        const td = txDurData[tx];
-        if (td) {
-          Object.entries(td.bkts).forEach(([b, v]) => {
-            cb.trxDur[tx][b] = { sum:v.sum, n:v.n,
-              min: isFinite(v.min)?v.min:0, max: isFinite(v.max)?v.max:0 };
-            cb.trxPerBkt[tx][b] = v.n;
-          });
-        }
+        const bkts = txDurBkts[tx] || {};
+        Object.entries(bkts).forEach(([b, v]) => {
+          cb.trxDur[tx][b] = { sum:v.sum, n:v.n,
+            min: isFinite(v.min)?v.min:0, max: isFinite(v.max)?v.max:0 };
+          cb.trxPerBkt[tx][b] = v.n;
+        });
       });
 
       Object.entries(apiData).forEach(([key, item]) => {
@@ -535,8 +522,6 @@ function parseK6CSV(filePath) {
         });
       });
 
-      // Build cb.tx — per-tx per-bucket ok aggregated from apiData (http_reqs success)
-      // Used by frontend recompute() for RPS per-tx when time filter is applied
       Object.values(cb.api).forEach(item => {
         const tx = item.transaction;
         if (!cb.tx[tx]) cb.tx[tx] = {};
@@ -561,7 +546,7 @@ function parseK6CSV(filePath) {
         summary[name] = { count:n, avg:n?sum/n:0, min:mn===Infinity?0:mn, max:mx===-Infinity?0:mx };
       });
 
-      resolve({
+      return {
         summary, timeSeries, statCards,
         txTable, apiTable, checksTable, checksTimeSeries,
         tpsAll, rpsAll, tpsByTx, rpsByTx, rpsByApi, allBuckets,
@@ -574,17 +559,10 @@ function parseK6CSV(filePath) {
         txToGroup,
         timeRange: { start: allBuckets[0]||0, end: allBuckets[allBuckets.length-1]||0 },
         totalRows,
-      });
+      };
     }
 
-    // ── Wire streaming parser ─────────────────────────────────────────────────
-    const stream = fs.createReadStream(filePath, { highWaterMark: 256 * 1024 });
-    const parser = parse({ columns:true, skip_empty_lines:true, trim:true });
-    parser.on('readable', () => { let r; while ((r = parser.read()) !== null) onRow(r); });
-    parser.on('error', reject);
-    parser.on('end',   () => { try { finalize(); } catch (e) { reject(e); } });
-    stream.on('error', reject);
-    stream.pipe(parser);
+    run().then(resolve).catch(reject);
   });
 }
 
