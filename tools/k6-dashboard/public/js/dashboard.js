@@ -2,6 +2,32 @@
 let DATA = null, FLT = null, GRP = '';
 const D  = () => FLT || DATA;
 const CH = {};
+const TABLE_SORT = {};
+const TABLE_RENDER_FNS = {
+  tblChecks: renderChecksTable, tblTx: renderTxTable, tblApi: renderApiTable,
+  tblTpsStat: renderTpsStat, tblRpsStat: renderRpsStat,
+};
+
+function tableSort(tblId, col){
+  const cur=TABLE_SORT[tblId];
+  TABLE_SORT[tblId]=cur?.col===col?{col,dir:cur.dir==='asc'?'desc':'asc'}:{col,dir:'asc'};
+  TABLE_RENDER_FNS[tblId]?.();
+}
+function applySort(rows, tblId){
+  const s=TABLE_SORT[tblId]; if(!s) return rows;
+  return [...rows].sort((a,b)=>{
+    const av=a[s.col], bv=b[s.col];
+    const cmp=typeof av==='string'?av.localeCompare(bv):(av-bv);
+    return s.dir==='asc'?cmp:-cmp;
+  });
+}
+function updateSortIndicators(tblId){
+  const s=TABLE_SORT[tblId];
+  document.querySelectorAll(`#${tblId} thead .th-sort`).forEach(th=>{
+    th.classList.remove('asc','desc');
+    if(s&&th.dataset.sortKey===s.col) th.classList.add(s.dir);
+  });
+}
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 const fmtS   = v => (v==null||isNaN(v)) ? '—' : (v/1000).toFixed(3);
@@ -598,9 +624,11 @@ function renderTransfer(){
   CH['tr']=new Chart(document.getElementById('cTransfer').getContext('2d'),{type:'line',data:{labels:allTs.map(fmtT),datasets:[ds('data_sent',mv(sTs),'#ffaa3b',{fill:true}),ds('data_received',mv(rTs),'#39d98a',{fill:true})]},options:opts});
 }
 function renderChecksTable(){
+  const rows=applySort(D().checksTable,'tblChecks');
   document.querySelector('#tblChecks tbody').innerHTML=
-    D().checksTable.map(r=>`<tr><td title="${r.check}">${r.check}</td><td class="r cg">${r.pass}</td><td class="r ${r.fail>0?'cr':''}">${r.fail}</td><td class="r">${r.total}</td><td class="r"><span class="pill ${r.rate>=100?'pg':r.rate>=90?'po':'pr'}">${r.rate}%</span></td></tr>`).join('')
+    rows.map(r=>`<tr><td title="${r.check}">${r.check}</td><td class="r cg">${r.pass}</td><td class="r ${r.fail>0?'cr':''}">${r.fail}</td><td class="r">${r.total}</td><td class="r"><span class="pill ${r.rate>=100?'pg':r.rate>=90?'po':'pr'}">${r.rate}%</span></td></tr>`).join('')
     ||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">No checks data</td></tr>';
+  updateSortIndicators('tblChecks');
 }
 function renderChecksChart(){
   destroyChart('cc');
@@ -611,11 +639,12 @@ function renderChecksChart(){
 function renderTxTable(){
   const q=(document.getElementById('txSearch')?.value||'').toLowerCase();
   const txs=new Set(getActiveTx());
-  const rows=D().txTable.filter(r=>{
+  const filtered=D().txTable.filter(r=>{
     if(!txs.has(r.transaction)) return false;
     if(q && !r.transaction.toLowerCase().includes(q)) return false;
     return true;
   });
+  const rows=applySort(filtered,'tblTx');
   document.querySelector('#tblTx tbody').innerHTML=
     rows.map(r=>`<tr>
       <td><strong>${r.transaction}</strong></td>
@@ -626,6 +655,7 @@ function renderTxTable(){
       <td class="r"><span class="pill ${r.successRate>=99?'pg':r.successRate>=90?'pb':'pr'}">${r.successRate}%</span></td>
     </tr>`).join('')
     ||'<tr><td colspan="9" style="color:var(--muted);padding:16px;text-align:center">No transaction data</td></tr>';
+  updateSortIndicators('tblTx');
 }
 function renderApiFilter(){
   document.getElementById('apiFilter').innerHTML=
@@ -635,12 +665,13 @@ function renderApiTable(){
   const f=document.getElementById('apiFilter').value;
   const q=(document.getElementById('apiSearch')?.value||'').toLowerCase();
   const txs=new Set(getActiveTx());
-  const rows=D().apiTable.filter(r=>{
+  const filtered=D().apiTable.filter(r=>{
     if(GRP && !txs.has(r.transaction)) return false;
     if(f && r.transaction!==f) return false;
     if(q && !r.api.toLowerCase().includes(q)) return false;
     return true;
   });
+  const rows=applySort(filtered,'tblApi');
   document.querySelector('#tblApi tbody').innerHTML=
     rows.map(r=>`<tr>
       <td style="color:var(--muted)" title="${r.transaction}">${r.transaction}</td>
@@ -652,6 +683,7 @@ function renderApiTable(){
       <td class="r"><span class="pill ${r.successRate>=99?'pg':r.successRate>=90?'pb':'pr'}">${r.successRate}%</span></td>
     </tr>`).join('')
     ||'<tr><td colspan="10" style="color:var(--muted);padding:16px;text-align:center">No API data</td></tr>';
+  updateSortIndicators('tblApi');
 }
 
 // ─── Group Filter ─────────────────────────────────────────────────────────────
@@ -709,9 +741,11 @@ function renderTpsStat(){
     return {tx,min:Math.min(...pts),avg:sum/pts.length,max:Math.max(...pts)};
   }).filter(Boolean);
   const ovHtml=ovRow?`<tr style="border-bottom:2px solid var(--border2)"><td><strong class="cc">Overall</strong></td><td class="r cc">${ovRow.min.toFixed(2)}</td><td class="r cc">${ovRow.avg.toFixed(2)}</td><td class="r cc">${ovRow.max.toFixed(2)}</td></tr>`:'';
+  const sorted=applySort(rows,'tblTpsStat');
   document.querySelector('#tblTpsStat tbody').innerHTML=
-    ovHtml+rows.map(r=>`<tr><td><strong>${r.tx}</strong></td><td class="r">${r.min.toFixed(2)}</td><td class="r">${r.avg.toFixed(2)}</td><td class="r">${r.max.toFixed(2)}</td></tr>`).join('')
+    ovHtml+sorted.map(r=>`<tr><td><strong>${r.tx}</strong></td><td class="r">${r.min.toFixed(2)}</td><td class="r">${r.avg.toFixed(2)}</td><td class="r">${r.max.toFixed(2)}</td></tr>`).join('')
     ||'<tr><td colspan="4" style="color:var(--muted);padding:16px;text-align:center">No TPS data</td></tr>';
+  updateSortIndicators('tblTpsStat');
 }
 function renderRpsStat(){
   const d=D(), cb=DATA.clientBuckets;
@@ -729,11 +763,13 @@ function renderRpsStat(){
     const sum=pts.reduce((a,v)=>a+v,0);
     rows.push({tx:item.transaction,api:item.api,min:Math.min(...pts),avg:sum/pts.length,max:Math.max(...pts)});
   });
-  rows.sort((a,b)=>a.tx.localeCompare(b.tx)||a.api.localeCompare(b.api));
+  if(!TABLE_SORT['tblRpsStat']) rows.sort((a,b)=>a.tx.localeCompare(b.tx)||a.api.localeCompare(b.api));
   const ovHtml=ovRow?`<tr style="border-bottom:2px solid var(--border2)"><td><strong class="cc">Overall</strong></td><td style="color:var(--muted)">—</td><td class="r cc">${ovRow.min.toFixed(2)}</td><td class="r cc">${ovRow.avg.toFixed(2)}</td><td class="r cc">${ovRow.max.toFixed(2)}</td></tr>`:'';
+  const sorted=applySort(rows,'tblRpsStat');
   document.querySelector('#tblRpsStat tbody').innerHTML=
-    ovHtml+rows.map(r=>`<tr><td style="color:var(--muted)">${r.tx}</td><td><strong>${r.api}</strong></td><td class="r">${r.min.toFixed(2)}</td><td class="r">${r.avg.toFixed(2)}</td><td class="r">${r.max.toFixed(2)}</td></tr>`).join('')
+    ovHtml+sorted.map(r=>`<tr><td style="color:var(--muted)">${r.tx}</td><td><strong>${r.api}</strong></td><td class="r">${r.min.toFixed(2)}</td><td class="r">${r.avg.toFixed(2)}</td><td class="r">${r.max.toFixed(2)}</td></tr>`).join('')
     ||'<tr><td colspan="5" style="color:var(--muted);padding:16px;text-align:center">No RPS data</td></tr>';
+  updateSortIndicators('tblRpsStat');
 }
 
 // ─── Export to CSV ────────────────────────────────────────────────────────────

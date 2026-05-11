@@ -143,14 +143,14 @@
           <div class="panel">
             <div class="pt" style="justify-content:space-between">TPS Summary — by Transaction <button class="btn-export" onclick="exportTableToCSV('tblTpsStat','tps_summary')">Export CSV</button></div>
             <div class="tw" style="max-height:220px"><table id="tblTpsStat">
-              <thead><tr><th>Transaction</th><th class="r">Min TPS</th><th class="r">Avg TPS</th><th class="r">Max TPS</th></tr></thead>
+              <thead><tr><th class="th-sort" data-sort-key="tx" onclick="tableSort('tblTpsStat','tx')">Transaction</th><th class="r th-sort" data-sort-key="min" onclick="tableSort('tblTpsStat','min')">Min TPS</th><th class="r th-sort" data-sort-key="avg" onclick="tableSort('tblTpsStat','avg')">Avg TPS</th><th class="r th-sort" data-sort-key="max" onclick="tableSort('tblTpsStat','max')">Max TPS</th></tr></thead>
               <tbody></tbody>
             </table></div>
           </div>
           <div class="panel">
             <div class="pt" style="justify-content:space-between">RPS Summary — by API (success) <button class="btn-export" onclick="exportTableToCSV('tblRpsStat','rps_summary')">Export CSV</button></div>
             <div class="tw" style="max-height:220px"><table id="tblRpsStat">
-              <thead><tr><th>Transaction</th><th>API</th><th class="r">Min RPS</th><th class="r">Avg RPS</th><th class="r">Max RPS</th></tr></thead>
+              <thead><tr><th class="th-sort" data-sort-key="tx" onclick="tableSort('tblRpsStat','tx')">Transaction</th><th class="th-sort" data-sort-key="api" onclick="tableSort('tblRpsStat','api')">API</th><th class="r th-sort" data-sort-key="min" onclick="tableSort('tblRpsStat','min')">Min RPS</th><th class="r th-sort" data-sort-key="avg" onclick="tableSort('tblRpsStat','avg')">Avg RPS</th><th class="r th-sort" data-sort-key="max" onclick="tableSort('tblRpsStat','max')">Max RPS</th></tr></thead>
               <tbody></tbody>
             </table></div>
           </div>
@@ -182,7 +182,7 @@
           <div class="panel">
             <div class="pt" style="justify-content:space-between">Checks List <button class="btn-export" onclick="exportTableToCSV('tblChecks','checks')">Export CSV</button></div>
             <div class="tw"><table id="tblChecks">
-              <thead><tr><th>Check Name</th><th class="r">Pass</th><th class="r">Fail</th><th class="r">Total</th><th class="r">Rate</th></tr></thead>
+              <thead><tr><th class="th-sort" data-sort-key="check" onclick="tableSort('tblChecks','check')">Check Name</th><th class="r th-sort" data-sort-key="pass" onclick="tableSort('tblChecks','pass')">Pass</th><th class="r th-sort" data-sort-key="fail" onclick="tableSort('tblChecks','fail')">Fail</th><th class="r th-sort" data-sort-key="total" onclick="tableSort('tblChecks','total')">Total</th><th class="r th-sort" data-sort-key="rate" onclick="tableSort('tblChecks','rate')">Rate</th></tr></thead>
               <tbody></tbody>
             </table></div>
           </div>
@@ -201,7 +201,7 @@
             <input type="text" class="search-input" id="txSearch" placeholder="Filter transaction name…" oninput="renderTxTable()">
           </div>
           <div class="tw"><table id="tblTx">
-            <thead><tr><th>Transaction</th><th class="r">Min (s)</th><th class="r">Avg (s)</th><th class="r">Max (s)</th><th class="r">p90 (s)</th><th class="r">Success</th><th class="r">Error</th><th class="r">Sample</th><th class="r">Rate</th></tr></thead>
+            <thead><tr><th class="th-sort" data-sort-key="transaction" onclick="tableSort('tblTx','transaction')">Transaction</th><th class="r th-sort" data-sort-key="min" onclick="tableSort('tblTx','min')">Min (s)</th><th class="r th-sort" data-sort-key="avg" onclick="tableSort('tblTx','avg')">Avg (s)</th><th class="r th-sort" data-sort-key="max" onclick="tableSort('tblTx','max')">Max (s)</th><th class="r th-sort" data-sort-key="p90" onclick="tableSort('tblTx','p90')">p90 (s)</th><th class="r th-sort" data-sort-key="success" onclick="tableSort('tblTx','success')">Success</th><th class="r th-sort" data-sort-key="error" onclick="tableSort('tblTx','error')">Error</th><th class="r th-sort" data-sort-key="sample" onclick="tableSort('tblTx','sample')">Sample</th><th class="r th-sort" data-sort-key="successRate" onclick="tableSort('tblTx','successRate')">Rate</th></tr></thead>
             <tbody></tbody>
           </table></div>
         </div>
@@ -212,7 +212,7 @@
             <label>Search API:</label><input type="text" class="search-input" id="apiSearch" placeholder="Filter API name…" oninput="renderApiTable()">
           </div>
           <div class="tw"><table id="tblApi">
-            <thead><tr><th>Business Process</th><th>API</th><th class="r">Min (s)</th><th class="r">Avg (s)</th><th class="r">Max (s)</th><th class="r">p90 (s)</th><th class="r">Success</th><th class="r">Error</th><th class="r">Sample</th><th class="r">Rate</th></tr></thead>
+            <thead><tr><th class="th-sort" data-sort-key="transaction" onclick="tableSort('tblApi','transaction')">Business Process</th><th class="th-sort" data-sort-key="api" onclick="tableSort('tblApi','api')">API</th><th class="r th-sort" data-sort-key="min" onclick="tableSort('tblApi','min')">Min (s)</th><th class="r th-sort" data-sort-key="avg" onclick="tableSort('tblApi','avg')">Avg (s)</th><th class="r th-sort" data-sort-key="max" onclick="tableSort('tblApi','max')">Max (s)</th><th class="r th-sort" data-sort-key="p90" onclick="tableSort('tblApi','p90')">p90 (s)</th><th class="r th-sort" data-sort-key="success" onclick="tableSort('tblApi','success')">Success</th><th class="r th-sort" data-sort-key="error" onclick="tableSort('tblApi','error')">Error</th><th class="r th-sort" data-sort-key="sample" onclick="tableSort('tblApi','sample')">Sample</th><th class="r th-sort" data-sort-key="successRate" onclick="tableSort('tblApi','successRate')">Rate</th></tr></thead>
             <tbody></tbody>
           </table></div>
         </div>
