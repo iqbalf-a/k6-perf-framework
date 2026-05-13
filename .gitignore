@@ -1,6 +1,7 @@
 # ── Dependencies (hanya untuk IDE autocomplete) ───────────────────────────────
 node_modules/
 tools/k6-dashboard/web/dist/
+tools/k6-dashboard/public/docs/
 
 # ── k6 binary ─────────────────────────────────────────────────────────────────
 # Letakkan k6.exe satu level di atas repo (../k6.exe), jangan di dalam repo

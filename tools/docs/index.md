@@ -1,25 +1,32 @@
----
-layout: home
+# k6 Perf Framework
 
-hero:
-  name: k6 Perf Framework
-  text: Load testing multi-BP untuk tim QA
-  tagline: Struktur siap pakai berbasis k6 — scenario, transaksi, metrics, dan observability dalam satu framework.
-  actions:
-    - theme: brand
-      text: Getting Started
-      link: /getting-started
-    - theme: alt
-      text: Lihat di GitHub
-      link: https://github.com/iqbalf-a/k6-perf-framework
+Framework k6 untuk load testing multi-BP (Business Process).
 
-features:
-  - title: Multi-BP & Multi-Channel
-    details: Satu scenario bisa menjalankan beberapa Business Process sekaligus dengan distribusi VU otomatis. Setiap project punya parameter.config.js sendiri.
-  - title: Metrics Siap Pakai
-    details: trx_duration, trx_count_pass/fail, api_duration — semua terekam otomatis dengan tag transaction, group, dan api. Langsung bisa ditampilkan di Grafana atau k6 Dashboard.
-  - title: k6 Dashboard (tanpa Grafana)
-    details: Upload atau load file CSV hasil k6, semua panel ter-render dalam ~20 detik untuk file 1.8 GB. Tidak butuh Prometheus atau server eksternal.
-  - title: Extract & Batch
-    details: Ekstrak nilai dari response (JSONPath, header, regex) langsung ke session. Kirim beberapa request paralel dengan batch() tanpa boilerplate.
----
+## Fitur Utama
+
+| Fitur | Keterangan |
+|-------|------------|
+| **Multi-BP & Multi-Channel** | Satu scenario menjalankan beberapa Business Process dengan distribusi VU otomatis |
+| **Metrics Siap Pakai** | `trx_duration`, `trx_count_pass/fail`, `api_duration` — terekam otomatis dengan tag lengkap |
+| **k6 Dashboard** | Visualisasi CSV hasil k6 tanpa Prometheus — parse file 1.8 GB dalam ~30 detik |
+| **Extract & Batch** | Ekstrak nilai dari response ke session, kirim request paralel tanpa boilerplate |
+
+## Pengenalan
+
+- [Getting Started](getting-started) — setup, prerequisites, struktur project
+- [Cara Run](cara-run) — parameter `run.ps1` dan contoh penggunaan
+- [Struktur Folder](struktur-folder) — layout direktori lengkap
+
+## Framework Guide
+
+- [Tambah BP](framework/tambah-bp) — membuat Business Process baru
+- [Tambah Project](framework/tambah-project) — setup project baru dari template
+- [Extract & Batch](framework/extract-batch) — ekstrak data response dan request paralel
+- [Variable Sources](framework/variable-sources) — sumber data: CSV, session, parameter
+- [Auth](framework/auth) — pola autentikasi token
+- [Transaksi Gagal](framework/transaction-fail) — behavior otomatis saat API error
+
+## Observability
+
+- [k6 Dashboard](observability/k6-dashboard) — setup dan fitur dashboard CSV
+- [Grafana Stack](observability/grafana) — integrasi Prometheus + Loki + Grafana
