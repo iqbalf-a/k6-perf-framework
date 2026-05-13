@@ -11,6 +11,28 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+const reactDist = path.join(__dirname, 'web', 'dist');
+if (fs.existsSync(reactDist)) {
+  app.use('/app', express.static(reactDist));
+  app.get('/app/*', (req, res) => {
+    res.sendFile(path.join(reactDist, 'index.html'));
+  });
+} else {
+  app.get('/app', (req, res) => {
+    res.status(503).send(`
+      <!doctype html>
+      <html>
+        <head><title>k6 Dashboard App</title></head>
+        <body style="font-family:Arial,sans-serif;background:#0b0d14;color:#dde1f0;padding:32px">
+          <h1>React app belum dibuild</h1>
+          <p>Jalankan <code>npm --prefix tools/k6-dashboard/web install</code>, lalu <code>npm run web:build</code> dari <code>tools/k6-dashboard</code>.</p>
+          <p>Dashboard lama tetap tersedia di <a style="color:#39d98a" href="/">/</a>.</p>
+        </body>
+      </html>
+    `);
+  });
+}
+
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, os.tmpdir()),
   filename:    (req, file, cb) => cb(null, `k6_${Date.now()}_${file.originalname}`)

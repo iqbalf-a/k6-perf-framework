@@ -105,6 +105,16 @@
       <button class="tf-apply-btn" onclick="applyDurInput()">Apply</button>
       <button class="tf-reset-btn" id="tfResetBtn" onclick="resetFilter()">Reset</button>
 
+      <div class="tf-field tf-gran-field">
+        <div class="tf-field-label">Granularity (sec)</div>
+        <input type="number" class="tf-gran-input" id="granInput"
+               min="1" max="86400" step="1" value="1"
+               onkeydown="if(event.key==='Enter')applyGranularity()">
+        <div class="tf-gran-status" id="granStatus">Auto</div>
+      </div>
+      <button class="tf-gran-apply-btn" onclick="applyGranularity()">Apply Granularity</button>
+      <button class="tf-gran-reset-btn" id="granResetBtn" onclick="resetGranularity()">Auto Active</button>
+
       <div class="tf-status">
         <div class="tf-dur-badge" id="tfDurBadge">Full range</div>
         <div id="groupFilterWrap" style="display:none;align-items:center;gap:6px">
@@ -112,6 +122,12 @@
           <select id="groupFilter" onchange="applyGroupFilter()"></select>
         </div>
       </div>
+    </div>
+
+    <div class="optional-row">
+      <span class="tf-row2-label">Optional Panels:</span>
+      <button class="optional-toggle" id="toggleHttpLatency" onclick="toggleOptionalSection('httpLatency')">Show HTTP Latency</button>
+      <button class="optional-toggle" id="toggleChecks" onclick="toggleOptionalSection('checks')">Show Checks</button>
     </div>
 
   </div>
@@ -162,7 +178,7 @@
       </div>
     </div>
 
-    <div class="sec">
+    <div class="sec optional-sec off" id="secHttpLatency">
       <div class="sec-hd" onclick="toggleSec(this)"><span class="sec-arrow open">▶</span><span class="sec-name">HTTP Latency</span><div class="sec-line"></div></div>
       <div class="sec-body">
         <div class="g3">
@@ -175,7 +191,7 @@
       </div>
     </div>
 
-    <div class="sec">
+    <div class="sec optional-sec off" id="secChecks">
       <div class="sec-hd" onclick="toggleSec(this)"><span class="sec-arrow open">▶</span><span class="sec-name">Checks</span><div class="sec-line"></div></div>
       <div class="sec-body">
         <div class="g2">

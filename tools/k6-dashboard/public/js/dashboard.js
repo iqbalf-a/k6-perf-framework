@@ -1,6 +1,14 @@
 // ─── State ────────────────────────────────────────────────────────────────────
-let DATA = null, FLT = null, GRP = '';
+let DATA = null, FLT = null, GRP = '', GRAN = 'auto';
+let AGG_SRC = null, AGG_MS = 0, AGG_DATA = null;
+const OPTIONAL = { httpLatency:false, checks:false };
 const D  = () => FLT || DATA;
+function G(){
+  const src=D(), ms=getGranularityMs();
+  if(src===AGG_SRC && ms===AGG_MS && AGG_DATA) return AGG_DATA;
+  AGG_SRC=src; AGG_MS=ms; AGG_DATA=aggregateForCharts(src,ms);
+  return AGG_DATA;
+}
 const CH = {};
 const TABLE_SORT = {};
 const TABLE_RENDER_FNS = {
@@ -64,6 +72,135 @@ function parseHMS(str){
 const PAL = ['#39d98a','#4f9dff','#ffaa3b','#a78bfa','#22d3ee','#fde047','#ff4c6a','#f472b6','#fb923c','#34d399','#818cf8','#f43f5e'];
 const ha  = (hex,a)=>{ const r=parseInt(hex.slice(1,3),16),g=parseInt(hex.slice(3,5),16),b=parseInt(hex.slice(5,7),16); return `rgba(${r},${g},${b},${a})`; };
 
+// Chart granularity. Raw k6 CSV is bucketed per second; on large runs that can
+// produce dense flat-looking lines. Tables/stat cards keep raw data, charts use
+// this aggregated view.
+function getGranularityMs(){
+  const sec = GRAN==='auto' ? getAutoGranularitySec() : normalizeGranularity(GRAN);
+  return clampGranularityToRange(sec)*1000;
+}
+function normalizeGranularity(v){
+  const n=Math.round(Number(v));
+  return Number.isFinite(n)&&n>0 ? Math.min(n,86400) : 1;
+}
+function getActiveDurationSec(){
+  const d=D();
+  if(!d?.timeRange) return 0;
+  return Math.max(0,Math.round((d.timeRange.end-d.timeRange.start)/1000));
+}
+function roundNiceGranularity(sec){
+  const steps=[1,2,5,10,15,30,60,120,300,600,900,1800,3600];
+  return steps.find(s=>s>=sec) || steps[steps.length-1];
+}
+function getAutoGranularitySec(){
+  const dur=getActiveDurationSec();
+  if(dur<=0) return 1;
+  return roundNiceGranularity(Math.ceil(dur/250));
+}
+function clampGranularityToRange(sec){
+  const dur=getActiveDurationSec();
+  if(dur<=0) return normalizeGranularity(sec);
+  const maxUseful=Math.max(1,Math.floor(dur/2));
+  return Math.min(normalizeGranularity(sec),maxUseful);
+}
+function syncGranularityUI(){
+  const el=document.getElementById('granInput');
+  const st=document.getElementById('granStatus');
+  const reset=document.getElementById('granResetBtn');
+  const effective=clampGranularityToRange(GRAN==='auto'?getAutoGranularitySec():GRAN);
+  if(el && GRAN==='auto') el.value=effective;
+  if(st){
+    st.textContent=GRAN==='auto' ? `Auto: ${effective}s` : `Manual: ${effective}s`;
+    st.classList.toggle('manual',GRAN!=='auto');
+  }
+  if(reset) reset.textContent=GRAN==='auto'?'Auto Active':'Reset to Auto';
+}
+function applyGranularity(){
+  const el=document.getElementById('granInput'); if(!el) return;
+  GRAN=normalizeGranularity(el.value);
+  el.value=GRAN;
+  localStorage.setItem('k6-granularity-mode','manual');
+  localStorage.setItem('k6-granularity-sec',String(GRAN));
+  AGG_SRC=null; AGG_DATA=null;
+  syncGranularityUI();
+  renderAll();
+}
+function resetGranularity(){
+  GRAN='auto';
+  localStorage.setItem('k6-granularity-mode','auto');
+  localStorage.removeItem('k6-granularity-sec');
+  AGG_SRC=null; AGG_DATA=null;
+  syncGranularityUI();
+  renderAll();
+}
+function initGranularity(){
+  const el=document.getElementById('granInput'); if(!el) return;
+  const mode=localStorage.getItem('k6-granularity-mode')||'auto';
+  GRAN=mode==='manual' ? normalizeGranularity(localStorage.getItem('k6-granularity-sec')||el.value||1) : 'auto';
+  el.value=GRAN==='auto' ? getAutoGranularitySec() : GRAN;
+  syncGranularityUI();
+}
+function bucketKey(t, granMs, start){
+  if(granMs<=1000) return Number(t);
+  return start + Math.floor((Number(t)-start)/granMs)*granMs;
+}
+function aggregateSeries(series, granMs, opts={}){
+  if(!series?.length || granMs<=1000) return series||[];
+  const start=DATA?.timeRange?.start ?? series[0].t;
+  const mode=opts.mode||'avg';
+  const buckets=new Map();
+  series.forEach(p=>{
+    if(p?.v==null || Number.isNaN(Number(p.v))) return;
+    const k=bucketKey(p.t,granMs,start);
+    if(!buckets.has(k)) buckets.set(k,{t:k,sum:0,n:0,max:-Infinity});
+    const b=buckets.get(k), v=Number(p.v), w=Number(p.n||1);
+    b.sum+=v*w; b.n+=w; if(v>b.max)b.max=v;
+  });
+  return [...buckets.values()].sort((a,b)=>a.t-b.t).map(b=>{
+    let v;
+    if(mode==='sum') v=b.sum;
+    else if(mode==='rate') v=b.sum/(granMs/1000);
+    else if(mode==='max') v=b.max;
+    else v=b.n?b.sum/b.n:null;
+    return {t:b.t,v};
+  });
+}
+function mapToBuckets(series, buckets, granMs, mode='avg'){
+  const agg=aggregateSeries(series,granMs,{mode});
+  const mp=Object.fromEntries(agg.map(p=>[p.t,p.v]));
+  return buckets.map(t=>({t,v:mp[t]??null}));
+}
+function aggregateForCharts(src, granMs){
+  if(!src || granMs<=1000) return src;
+  const bucketSource=(src.tpsAll?.length ? src.tpsAll : (src.allBuckets||[]).map(t=>({t,v:0})));
+  const allBuckets=aggregateSeries(bucketSource,granMs,{mode:'rate'}).map(p=>p.t);
+  const tpsAll=mapToBuckets(src.tpsAll||[],allBuckets,granMs,'rate');
+  const rpsAll=mapToBuckets(src.rpsAll||[],allBuckets,granMs,'rate');
+  const tpsByTx={}; Object.entries(src.tpsByTx||{}).forEach(([k,v])=>{ tpsByTx[k]=mapToBuckets(v,allBuckets,granMs,'rate'); });
+  const rpsByApi={}; Object.entries(src.rpsByApi||{}).forEach(([k,v])=>{ rpsByApi[k]=mapToBuckets(v,allBuckets,granMs,'rate'); });
+  const txResponseTime={}; Object.entries(src.txResponseTime||{}).forEach(([k,v])=>{ txResponseTime[k]=mapToBuckets(v,allBuckets,granMs,'avg'); });
+  const apiResponseTime={}; Object.entries(src.apiResponseTime||{}).forEach(([k,v])=>{ apiResponseTime[k]=mapToBuckets(v,allBuckets,granMs,'avg'); });
+  const timeSeries={};
+  Object.entries(src.timeSeries||{}).forEach(([k,v])=>{
+    const mode=k==='vus'||k==='vus_max'?'max':'avg';
+    timeSeries[k]=aggregateSeries(v,granMs,{mode});
+  });
+  return {
+    ...src,
+    timeSeries,
+    allBuckets,
+    tpsAll,
+    rpsAll,
+    tpsByTx,
+    rpsByApi,
+    txResponseTimeAll:mapToBuckets(src.txResponseTimeAll||[],allBuckets,granMs,'avg'),
+    txResponseTime,
+    apiResponseTimeAll:mapToBuckets(src.apiResponseTimeAll||[],allBuckets,granMs,'avg'),
+    apiResponseTime,
+    checksTimeSeries:aggregateSeries(src.checksTimeSeries||[],granMs,{mode:'avg'}),
+  };
+}
+
 // ─── Chart helpers ────────────────────────────────────────────────────────────
 function destroyChart(id){ if(CH[id]){try{CH[id].destroy()}catch(e){}delete CH[id];} }
 
@@ -93,6 +230,33 @@ function makeLeg(el,items){
 function toggleSec(hd){
   hd.nextElementSibling.classList.toggle('hide');
   hd.querySelector('.sec-arrow').classList.toggle('open');
+}
+function syncOptionalSections(){
+  const http=document.getElementById('secHttpLatency');
+  const checks=document.getElementById('secChecks');
+  const btnHttp=document.getElementById('toggleHttpLatency');
+  const btnChecks=document.getElementById('toggleChecks');
+  if(http) http.classList.toggle('off',!OPTIONAL.httpLatency);
+  if(checks) checks.classList.toggle('off',!OPTIONAL.checks);
+  if(btnHttp){
+    btnHttp.classList.toggle('active',OPTIONAL.httpLatency);
+    btnHttp.textContent=OPTIONAL.httpLatency?'Hide HTTP Latency':'Show HTTP Latency';
+  }
+  if(btnChecks){
+    btnChecks.classList.toggle('active',OPTIONAL.checks);
+    btnChecks.textContent=OPTIONAL.checks?'Hide Checks':'Show Checks';
+  }
+}
+function toggleOptionalSection(key){
+  OPTIONAL[key]=!OPTIONAL[key];
+  syncOptionalSections();
+  if(!DATA) return;
+  if(key==='httpLatency'&&OPTIONAL.httpLatency){
+    renderTimingBars(); renderLatStats(); renderReqRate(); renderLatTimings(); renderTransfer();
+  }
+  if(key==='checks'&&OPTIONAL.checks){
+    renderChecksTable(); renderChecksChart();
+  }
 }
 
 // ─── Upload ───────────────────────────────────────────────────────────────────
@@ -136,7 +300,8 @@ function setLoad(on){
 }
 function showErr(msg){ setLoad(false); document.getElementById('uploadHint').textContent='❌ '+(msg||'Error'); }
 function resetDash(){
-  DATA=null; FLT=null; GRP='';
+  DATA=null; FLT=null; GRP=''; GRAN='auto'; AGG_SRC=null; AGG_DATA=null;
+  OPTIONAL.httpLatency=false; OPTIONAL.checks=false; syncOptionalSections();
   Object.keys(CH).forEach(k=>{try{CH[k].destroy()}catch(e){}delete CH[k];});
   document.getElementById('uploadScreen').style.display='flex';
   document.getElementById('loading').style.display='none';
@@ -146,7 +311,8 @@ function resetDash(){
 function onData(res){
   if(!res.success){showErr(res.error||'Parse error');return;}
   setLoad(false);
-  DATA=res; FLT=null; GRP='';
+  DATA=res; FLT=null; GRP=''; AGG_SRC=null; AGG_DATA=null;
+  initGranularity();
   initSlider();
   document.getElementById('uploadScreen').style.display='none';
   document.getElementById('loading').style.display='none';
@@ -157,6 +323,7 @@ function onData(res){
   document.getElementById('topDuration').textContent=dur?fmtDur(dur):'—';
   renderApiFilter();
   initGroupFilter();
+  syncOptionalSections();
   renderAll();
   initChartExportButtons();
 }
@@ -349,21 +516,24 @@ function applyDurInput(){
 }
 
 function resetFilter(){
-  FS.posL=0; FS.posR=1; FLT=null;
+  FS.posL=0; FS.posR=1; FLT=null; AGG_SRC=null; AGG_DATA=null;
   syncInputsFromSlider();
   updateSliderUI();
+  syncGranularityUI();
   renderAll();
 }
 
 function applyFilter(){
   if(!DATA) return;
   const active=FS.posL>0.001||FS.posR<0.999;
-  if(!active){FLT=null;renderAll();return;}
+  if(!active){FLT=null;AGG_SRC=null;AGG_DATA=null;syncGranularityUI();renderAll();return;}
   const badge=document.getElementById('tfDurBadge');
   const prev=badge.textContent; badge.textContent='Computing…';
   // setTimeout(0) beri browser kesempatan repaint sebelum komputasi berat dimulai
   setTimeout(()=>{
     FLT=recompute(tsOf(FS.posL),tsOf(FS.posR));
+    AGG_SRC=null; AGG_DATA=null;
+    syncGranularityUI();
     renderAll();
     updateSliderUI();
   },0);
@@ -485,8 +655,9 @@ function recompute(s,e){
 // ─── Render ───────────────────────────────────────────────────────────────────
 function renderAll(){
   renderStats(); renderOverview(); renderVuChart(); renderTpsOv(); renderRpsOv(); renderTps(); renderRps(); renderTxRt(); renderApiRt();
-  renderTimingBars(); renderLatStats(); renderReqRate(); renderLatTimings(); renderTransfer();
-  renderChecksTable(); renderChecksChart(); renderTxTable(); renderApiTable();
+  if(OPTIONAL.httpLatency){ renderTimingBars(); renderLatStats(); renderReqRate(); renderLatTimings(); renderTransfer(); }
+  if(OPTIONAL.checks){ renderChecksTable(); renderChecksChart(); }
+  renderTxTable(); renderApiTable();
   renderTpsStat(); renderRpsStat();
 }
 
@@ -509,8 +680,8 @@ function renderStats(){
 
 function renderOverview(){
   destroyChart('ov');
-  const d=D(), durTs=d.timeSeries['http_req_duration']||[], vusTs=d.timeSeries['vus']||[], reqTs=d.tpsAll||[];
-  const ep=d.statCards.totalReqs?d.statCards.errorReqs/d.statCards.totalReqs:0;
+  const d=G(), raw=D(), durTs=d.timeSeries['http_req_duration']||[], vusTs=d.timeSeries['vus']||[], reqTs=d.rpsAll||[];
+  const ep=raw.statCards.totalReqs?raw.statCards.errorReqs/raw.statCards.totalReqs:0;
   const tSet=[...new Set([...durTs,...vusTs,...reqTs].map(p=>p.t))].sort((a,b)=>a-b);
   const mapV=ser=>{const m=Object.fromEntries(ser.map(p=>[p.t,p.v]));return tSet.map(t=>m[t]??null);};
   const opts=baseOpts();
@@ -520,13 +691,13 @@ function renderOverview(){
   CH['ov']=new Chart(document.getElementById('cOverview').getContext('2d'),{type:'line',data:{labels:tSet.map(fmtT),datasets:[
     ds('http_req_duration (ms)',mapV(durTs),'#4f9dff',{fill:true,w:2}),
     {...ds('vus',mapV(vusTs),'#ff4c6a',{w:2}),yAxisID:'y1'},
-    {...ds('RPS',reqTs.map(p=>p.v),'#39d98a',{dash:[5,3]}),yAxisID:'y2'},
-    {...ds('Errors/s',reqTs.map(p=>+(p.v*ep).toFixed(3)),'#ff4c6a',{dash:[5,3]}),yAxisID:'y2'},
+    {...ds('RPS',mapV(reqTs),'#39d98a',{dash:[5,3]}),yAxisID:'y2'},
+    {...ds('Errors/s',mapV(reqTs).map(v=>v==null?null:+(v*ep).toFixed(3)),'#ff4c6a',{dash:[5,3]}),yAxisID:'y2'},
   ]},options:opts});
 }
 function renderTpsOv(){
   destroyChart('tpsov');
-  const d=D(), lbl=d.allBuckets.map(fmtT);
+  const d=G(), lbl=d.allBuckets.map(fmtT);
   const opts=baseOpts(); opts.scales.y.min=0;
   CH['tpsov']=new Chart(document.getElementById('cTpsOv').getContext('2d'),{type:'line',
     data:{labels:lbl,datasets:[{...ds('TPS Overall',d.tpsAll.map(p=>p.v),'#22d3ee',{fill:true,w:2})}]},
@@ -534,7 +705,7 @@ function renderTpsOv(){
 }
 function renderRpsOv(){
   destroyChart('rpsov');
-  const d=D(), lbl=d.allBuckets.map(fmtT);
+  const d=G(), lbl=d.allBuckets.map(fmtT);
   const opts=baseOpts(); opts.scales.y.min=0;
   CH['rpsov']=new Chart(document.getElementById('cRpsOv').getContext('2d'),{type:'line',
     data:{labels:lbl,datasets:[{...ds('RPS Overall',d.rpsAll.map(p=>p.v),'#39d98a',{fill:true,w:2})}]},
@@ -542,7 +713,7 @@ function renderRpsOv(){
 }
 function renderTps(){
   destroyChart('tps');
-  const d=D(), lbl=d.allBuckets.map(fmtT);
+  const d=G(), lbl=d.allBuckets.map(fmtT);
   const txs=getActiveTx();
   const dsets=[];
   txs.slice(0,12).forEach((tx,i)=>{ const s=d.tpsByTx[tx]||[]; dsets.push(ds(tx,s.map(p=>p.v),PAL[i%PAL.length])); });
@@ -552,7 +723,7 @@ function renderTps(){
 }
 function renderRps(){
   destroyChart('rps');
-  const d=D(), lbl=d.allBuckets.map(fmtT);
+  const d=G(), lbl=d.allBuckets.map(fmtT);
   const activeApis=getActiveApis();
   const dsets=[];
   activeApis.slice(0,12).forEach((api,i)=>{ const s=d.rpsByApi[api]||[]; dsets.push(ds(api,s.map(p=>p.v),PAL[i%PAL.length])); });
@@ -561,7 +732,7 @@ function renderRps(){
 }
 function renderTxRt(){
   destroyChart('txrt');
-  const d=D(), lbl=d.allBuckets.map(fmtT);
+  const d=G(), lbl=d.allBuckets.map(fmtT);
   const txs=getActiveTx();
   const dsets=[{...ds('Avg (all)',d.txResponseTimeAll.map(p=>p?.v??null),'#ffaa3b',{fill:true,w:2.5})}];
   txs.slice(0,8).forEach((tx,i)=>{ const s=d.txResponseTime[tx]||[]; dsets.push(ds(tx,s.map(p=>p?.v??null),PAL[i])); });
@@ -570,7 +741,7 @@ function renderTxRt(){
 }
 function renderApiRt(){
   destroyChart('apirt');
-  const d=D(), lbl=d.allBuckets.map(fmtT);
+  const d=G(), lbl=d.allBuckets.map(fmtT);
   const activeApis=getActiveApis();
   const dsets=[{...ds('Avg (all)',d.apiResponseTimeAll.map(p=>p?.v??null),'#a78bfa',{fill:true,w:2.5})}];
   activeApis.slice(0,8).forEach((api,i)=>{ const s=d.apiResponseTime[api]||[]; dsets.push(ds(api,s.map(p=>p?.v??null),PAL[i+1])); });
@@ -589,8 +760,8 @@ function renderTimingBars(){
 }
 function renderLatStats(){
   destroyChart('ls');
-  const d=D(), durTs=d.timeSeries['http_req_duration']||[];
-  const sr=d.statCards.totalReqs?d.statCards.successReqs/d.statCards.totalReqs:1, er=1-sr;
+  const d=G(), raw=D(), durTs=d.timeSeries['http_req_duration']||[];
+  const sr=raw.statCards.totalReqs?raw.statCards.successReqs/raw.statCards.totalReqs:1, er=1-sr;
   const opts=baseOpts('ms'); opts.plugins.legend={display:true,labels:{color:'#4a5070',font:{family:'Consolas',size:10},boxWidth:8,padding:10}};
   CH['ls']=new Chart(document.getElementById('cLatStats').getContext('2d'),{type:'line',data:{labels:durTs.map(p=>fmtT(p.t)),datasets:[
     ds('All',durTs.map(p=>p.v),'#fde047'),ds('Success',durTs.map(p=>+(p.v*sr).toFixed(2)),'#39d98a'),ds('Error',durTs.map(p=>+(p.v*er).toFixed(2)),'#ff4c6a',{dash:[4,3]}),
@@ -598,7 +769,7 @@ function renderLatStats(){
 }
 function renderReqRate(){
   destroyChart('rr');
-  const d=D(); const sr=d.statCards.totalReqs?d.statCards.successReqs/d.statCards.totalReqs:1, er=1-sr;
+  const d=G(), raw=D(); const sr=raw.statCards.totalReqs?raw.statCards.successReqs/raw.statCards.totalReqs:1, er=1-sr;
   const opts=baseOpts('req/s'); opts.plugins.legend={display:true,labels:{color:'#4a5070',font:{family:'Consolas',size:10},boxWidth:8,padding:10}};
   CH['rr']=new Chart(document.getElementById('cReqRate').getContext('2d'),{type:'line',data:{labels:d.tpsAll.map(p=>fmtT(p.t)),datasets:[
     ds('Total',d.tpsAll.map(p=>p.v),'#ffaa3b',{dash:[5,3]}),ds('Success',d.tpsAll.map(p=>+(p.v*sr).toFixed(2)),'#39d98a',{dash:[5,3]}),ds('Errors',d.tpsAll.map(p=>+(p.v*er).toFixed(2)),'#ff4c6a',{dash:[5,3]}),
@@ -606,7 +777,7 @@ function renderReqRate(){
 }
 function renderLatTimings(){
   destroyChart('lt');
-  const d=D();
+  const d=G();
   const mets=['http_req_duration','http_req_waiting','http_req_sending','http_req_receiving','http_req_blocked'];
   const cols=['#4f9dff','#a78bfa','#39d98a','#22d3ee','#ffaa3b'];
   const lbls=['duration','waiting','sending','receiving','blocked'];
@@ -617,7 +788,7 @@ function renderLatTimings(){
 }
 function renderTransfer(){
   destroyChart('tr');
-  const d=D(), sTs=d.timeSeries['data_sent']||[], rTs=d.timeSeries['data_received']||[];
+  const d=G(), sTs=d.timeSeries['data_sent']||[], rTs=d.timeSeries['data_received']||[];
   const allTs=[...new Set([...sTs,...rTs].map(p=>p.t))].sort((a,b)=>a-b);
   const mv=s=>{ const m=Object.fromEntries(s.map(p=>[p.t,p.v])); return allTs.map(t=>m[t]??null); };
   const opts=baseOpts('B/s'); opts.plugins.legend={display:true,labels:{color:'#4a5070',font:{family:'Consolas',size:10},boxWidth:8,padding:10}};
@@ -632,7 +803,7 @@ function renderChecksTable(){
 }
 function renderChecksChart(){
   destroyChart('cc');
-  const ser=D().checksTimeSeries;
+  const ser=G().checksTimeSeries;
   const opts=baseOpts('%'); opts.scales.y.min=0; opts.scales.y.max=100;
   CH['cc']=new Chart(document.getElementById('cChecks').getContext('2d'),{type:'line',data:{labels:ser.map(p=>fmtT(p.t)),datasets:[ds('Success Rate %',ser.map(p=>p.v),'#39d98a',{fill:true,w:2})]},options:opts});
 }
@@ -718,7 +889,7 @@ function getActiveApis(){
 // ─── VU Progression chart ────────────────────────────────────────────────────
 function renderVuChart(){
   destroyChart('vu');
-  const d=D(), ser=d.timeSeries['vus']||[];
+  const d=G(), ser=d.timeSeries['vus']||[];
   if(!ser.length) return;
   const opts=baseOpts(); opts.scales.y.min=0;
   opts.plugins.tooltip.callbacks.label=ctx=>` VUs: ${Math.round(ctx.parsed.y)}`;
@@ -731,7 +902,7 @@ function renderVuChart(){
 
 // ─── TPS / RPS stat tables ────────────────────────────────────────────────────
 function renderTpsStat(){
-  const d=D(), txs=getActiveTx();
+  const d=G(), txs=getActiveTx();
   const ovPts=d.tpsAll.map(p=>p.v).filter(v=>v>0);
   const ovRow=ovPts.length?{min:Math.min(...ovPts),avg:ovPts.reduce((a,v)=>a+v,0)/ovPts.length,max:Math.max(...ovPts)}:null;
   const rows=txs.map(tx=>{
@@ -748,17 +919,13 @@ function renderTpsStat(){
   updateSortIndicators('tblTpsStat');
 }
 function renderRpsStat(){
-  const d=D(), cb=DATA.clientBuckets;
-  const {start,end}=d.timeRange;
-  const inR=t=>Number(t)>=start&&Number(t)<=end;
-  const txs=new Set(getActiveTx());
+  const d=G(), txs=new Set(getActiveTx());
   const ovPts=d.rpsAll.map(p=>p.v).filter(v=>v>0);
   const ovRow=ovPts.length?{min:Math.min(...ovPts),avg:ovPts.reduce((a,v)=>a+v,0)/ovPts.length,max:Math.max(...ovPts)}:null;
   const rows=[];
-  Object.values(cb.api).forEach(item=>{
+  Object.values(DATA.clientBuckets?.api||{}).forEach(item=>{
     if(GRP&&!txs.has(item.transaction)) return;
-    const pts=[];
-    Object.entries(item.ts).forEach(([t,v])=>{ if(inR(t)&&v.ok>0) pts.push(v.ok); });
+    const pts=(d.rpsByApi[item.api]||[]).map(p=>p.v).filter(v=>v>0);
     if(!pts.length) return;
     const sum=pts.reduce((a,v)=>a+v,0);
     rows.push({tx:item.transaction,api:item.api,min:Math.min(...pts),avg:sum/pts.length,max:Math.max(...pts)});
@@ -901,3 +1068,4 @@ function applyTheme(t){
 }
 // Restore saved theme on load
 (()=>{ const t=localStorage.getItem('k6-theme')||'dark'; applyTheme(t); })();
+syncOptionalSections();

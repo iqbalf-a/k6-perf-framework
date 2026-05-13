@@ -80,6 +80,36 @@ input[type=text]::placeholder{color:var(--muted)}
 }
 .tf-dur-input:focus{border-color:var(--green);background:var(--s1)}
 .tf-dur-input.invalid{border-color:var(--red);background:rgba(255,76,106,.06)}
+.tf-gran-field{align-self:flex-end;margin-bottom:1px}
+.tf-gran-input{
+  background:var(--s2);border:1px solid var(--border2);border-radius:5px;
+  color:var(--text);font-family:var(--mono);font-size:12px;font-weight:700;
+  padding:4px 8px;width:82px;outline:none;text-align:right;
+  transition:border-color .15s;
+}
+.tf-gran-input:focus{border-color:var(--green);background:var(--s1)}
+.tf-gran-status{font-size:10px;color:var(--green);text-align:center;letter-spacing:.2px;height:14px;line-height:14px}
+.tf-gran-status.manual{color:var(--cyan)}
+.tf-gran-apply-btn{
+  background:var(--cyan);color:#000;border:none;border-radius:5px;
+  padding:5px 12px;cursor:pointer;font-family:var(--mono);font-size:10px;font-weight:700;
+  transition:opacity .15s;white-space:nowrap;align-self:flex-end;margin-bottom:1px;
+}
+.tf-gran-apply-btn:hover{opacity:.85}
+.tf-gran-reset-btn{
+  background:transparent;border:1px solid var(--border2);color:var(--muted);
+  padding:5px 10px;border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:10px;
+  white-space:nowrap;transition:all .15s;align-self:flex-end;margin-bottom:1px;
+}
+.tf-gran-reset-btn:hover{border-color:var(--cyan);color:var(--cyan)}
+.optional-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.optional-toggle{
+  background:transparent;border:1px solid var(--border2);color:var(--muted);
+  padding:4px 10px;border-radius:5px;cursor:pointer;font-family:var(--mono);font-size:10px;
+  white-space:nowrap;transition:all .15s;
+}
+.optional-toggle:hover,.optional-toggle.active{border-color:var(--cyan);color:var(--cyan)}
+.optional-sec.off{display:none}
 
 /* actual clock time hint under each input */
 .tf-clock-hint{font-size:10px;color:var(--muted);text-align:center;letter-spacing:.2px;height:14px;line-height:14px}
