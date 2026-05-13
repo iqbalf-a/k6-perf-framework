@@ -181,8 +181,8 @@ function DashboardPage() {
 
 function ResultsView({ data, chartData, granularity, setGranularity }) {
   const sc = data.statCards;
-  const topTx = [...(data.txTable || [])].sort((a, b) => b.p90 - a.p90).slice(0, 8);
-  const topApi = [...(data.apiTable || [])].sort((a, b) => b.p90 - a.p90).slice(0, 8);
+  const topTx = React.useMemo(() => [...(data.txTable || [])].sort((a, b) => b.p90 - a.p90).slice(0, 8), [data.txTable]);
+  const topApi = React.useMemo(() => [...(data.apiTable || [])].sort((a, b) => b.p90 - a.p90).slice(0, 8), [data.apiTable]);
 
   return (
     <section className="results-stack">
@@ -383,7 +383,10 @@ function ScriptGeneratorPage() {
     setSteps((current) => current.filter((step) => step.id !== id));
   };
 
-  const preview = buildScriptPreview({ channel, bpName, baseUrl, steps });
+  const preview = React.useMemo(
+    () => buildScriptPreview({ channel, bpName, baseUrl, steps }),
+    [channel, bpName, baseUrl, steps]
+  );
 
   return (
     <>
@@ -512,7 +515,10 @@ function ScenarioGeneratorPage() {
     setBps((current) => current.filter((bp) => bp.id !== id));
   };
 
-  const preview = buildScenarioPreview({ scenarioName, rampStep, holdDuration, bps });
+  const preview = React.useMemo(
+    () => buildScenarioPreview({ scenarioName, rampStep, holdDuration, bps }),
+    [scenarioName, rampStep, holdDuration, bps]
+  );
 
   return (
     <>
@@ -661,7 +667,7 @@ function renderApiPreview(apiItem, baseUrl) {
   return lines.join('\n');
 }
 
-function buildScenarioPreview({ rampStep, holdDuration, bps }) {
+function buildScenarioPreview({ scenarioName, rampStep, holdDuration, bps }) {
   const imports = bps.length ? bps.map((bp) =>
     `import { ${bp.fn || 'BPxxx_NamaBP'} } from '../script/NamaProject/${bp.fn || 'BPxxx_NamaBP'}/${bp.fn || 'BPxxx_NamaBP'}.js';`
   ).join('\n') : '// import { BP001_NamaBP } from \'../script/NamaProject/BP001_NamaBP/BP001_NamaBP.js\';';
@@ -670,7 +676,8 @@ function buildScenarioPreview({ rampStep, holdDuration, bps }) {
     `    { name: '${bp.name || 'BPxxx'}', users: ${Number(bp.users) || 1}, fn: ${bp.fn || 'BPxxx_NamaBP'}, thinkTime: ${Number(bp.thinkTime) || 0} },`
   ).join('\n') : '    // { name: \'BP001\', users: 1, fn: BP001_NamaBP, thinkTime: 1 },';
 
-  return `import { MODE, createOptions, dispatchVu, setBpList } from '../../lib/core/config.js';
+  return `// File: src/scenario/${scenarioName || 'scenario_myproject'}.js
+import { MODE, createOptions, dispatchVu, setBpList } from '../../lib/core/config.js';
 
 ${imports}
 

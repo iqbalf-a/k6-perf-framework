@@ -348,9 +348,12 @@ function parseK6CSV(filePath) {
         tpsByTx[tx] = allBuckets.map(t => ({ t, v: bkts[t]?.n || 0 }));
       });
 
+      const apiKeysByApi = {};
+      apis.forEach(api => { apiKeysByApi[api] = apiKeys.filter(k => k.endsWith('|||' + api)); });
+
       const rpsByApi = {};
       apis.forEach(api => {
-        const keys = apiKeys.filter(k => k.endsWith('|||' + api));
+        const keys = apiKeysByApi[api];
         rpsByApi[api] = allBuckets.map(t => ({
           t, v: keys.reduce((s, k) => s + (apiData[k].tsBkts[t]?.ok || 0), 0)
         }));
@@ -380,7 +383,7 @@ function parseK6CSV(filePath) {
       });
       const apiResponseTime = {};
       apis.forEach(api => {
-        const keys = apiKeys.filter(k => k.endsWith('|||' + api));
+        const keys = apiKeysByApi[api];
         apiResponseTime[api] = allBuckets.map(t => {
           let sum = 0, n = 0;
           keys.forEach(k => { const v = apiData[k].tsBkts[t]; if (v && v.n) { sum += v.sum; n += v.n; } });
@@ -591,6 +594,7 @@ app.post('/api/parse-path', async (req, res) => {
   try {
     const { filePath } = req.body;
     if (!filePath) return res.status(400).json({ error: 'filePath required' });
+    if (!filePath.toLowerCase().endsWith('.csv')) return res.status(400).json({ error: 'Only .csv files are allowed' });
     if (!fs.existsSync(filePath)) return res.status(404).json({ error: `File not found: ${filePath}` });
     const result = await parseK6CSV(filePath);
     res.json({ success: true, ...result });
