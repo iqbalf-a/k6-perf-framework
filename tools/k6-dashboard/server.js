@@ -6,42 +6,46 @@ const os            = require('os');
 const duckdb        = require('duckdb');
 const { marked }    = require('marked');
 
-const app  = express();
-const PORT = process.env.PORT || 3000;
+const app    = express();
+const PORT   = process.env.PORT || 3000;
+const isDev  = process.argv.includes('--dev');
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const reactDist = path.join(__dirname, 'web', 'dist');
-if (fs.existsSync(reactDist)) {
-  app.use('/app', express.static(reactDist));
-  app.get('/app/*', (req, res) => {
-    res.sendFile(path.join(reactDist, 'index.html'));
-  });
-} else {
-  app.get('/app', (req, res) => {
-    res.status(503).send(`
-      <!doctype html>
-      <html>
-        <head><title>k6 Dashboard App</title></head>
-        <body style="font-family:Arial,sans-serif;background:#0b0d14;color:#dde1f0;padding:32px">
-          <h1>React app belum dibuild</h1>
-          <p>Jalankan <code>npm --prefix tools/k6-dashboard/web install</code>, lalu <code>npm run web:build</code> dari <code>tools/k6-dashboard</code>.</p>
-          <p>Dashboard lama tetap tersedia di <a style="color:#39d98a" href="/">/</a>.</p>
-        </body>
-      </html>
-    `);
-  });
+if (!isDev) {
+  if (fs.existsSync(reactDist)) {
+    app.use('/app', express.static(reactDist));
+    app.get('/app/*', (req, res) => res.sendFile(path.join(reactDist, 'index.html')));
+  } else {
+    app.get('/app*', (req, res) => {
+      res.status(503).send(`<!doctype html><html>
+        <head><title>k6 Dashboard</title></head>
+        <body style="font-family:Consolas,monospace;background:#07080d;color:#dde1f0;padding:40px">
+          <h2>React app belum dibuild</h2>
+          <p>Jalankan: <code style="background:#141720;padding:3px 8px;border-radius:4px">npm run build</code> dari folder <code>tools/k6-dashboard</code></p>
+          <p>Atau untuk dev mode: <code style="background:#141720;padding:3px 8px;border-radius:4px">npm run dev</code></p>
+        </body></html>`);
+    });
+  }
 }
+// Dev mode: Vite middleware ditambahkan di start() dan akan handle semua /app/* requests
 
 // ── Docs ─────────────────────────────────────────────────────────────────────
-const DOCS_DIR = path.resolve(__dirname, '..', 'docs');
+const DOCS_DIR = path.join(__dirname, 'docs');
 
 marked.use({
   renderer: {
-    heading({ text, depth }) {
-      const id = text.replace(/<[^>]+>/g, '').toLowerCase().trim()
-        .replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+    heading(token) {
+      // marked v12: token.text may be undefined when called via use() chain;
+      // fall back to raw (strip leading # markers).
+      const raw   = typeof token === 'string' ? token : (token.raw || '');
+      const text  = (typeof token === 'object' ? token.text : null)
+                    ?? raw.replace(/^#{1,6}\s*/, '').trim();
+      const depth = typeof token === 'object' ? (token.depth || 1) : 1;
+      const id    = text.replace(/<[^>]+>/g, '').toLowerCase().trim()
+                       .replace(/\s+/g, '-').replace(/[^\w-]/g, '');
       return `<h${depth} id="${id}">${text}</h${depth}>\n`;
     }
   }
@@ -127,25 +131,46 @@ a{color:var(--green);text-decoration:none}a:hover{text-decoration:underline}
 .content code{font-family:var(--mono);font-size:12px;background:var(--s2);padding:1px 5px;border-radius:3px;color:#e8eaf0}
 .content blockquote{border-left:3px solid var(--border2);padding:4px 16px;margin:14px 0;color:var(--muted)}
 .content hr{border:none;border-top:1px solid var(--border);margin:24px 0}
-.toc{width:180px;flex-shrink:0}
-.toc-hd{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;margin-bottom:8px;position:sticky;top:32px}
-.toc ul{list-style:none;position:sticky;top:50px}
-.toc li a{display:block;font-size:11px;color:var(--muted);padding:3px 0;transition:color .15s}
-.toc li a:hover{color:var(--text);text-decoration:none}
-.toc li.lvl3{padding-left:10px}
+.toc{width:200px;flex-shrink:0;align-self:flex-start;position:sticky;top:32px}
+.toc-hd{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;margin-bottom:10px}
+.toc ul{list-style:none}
+.toc li a{display:block;font-size:11px;color:var(--muted);padding:3px 6px;border-left:2px solid transparent;transition:color .15s,border-color .15s}
+.toc li a:hover{color:var(--text);text-decoration:none;border-left-color:var(--border2)}
+.toc li a.act{color:var(--green);border-left-color:var(--green);font-weight:600}
+.toc li.lvl3{padding-left:12px}
 @media(max-width:960px){.toc{display:none}}
 @media(max-width:640px){.sidebar{display:none}.wrap{padding:24px 16px}}
 </style></head>
 <body>
 <nav class="sidebar">
   <div class="sb-brand"><strong>k6 Perf Framework</strong><small>Docs</small></div>
-  <a class="sb-back" href="/">← Dashboard</a>
+  <a class="sb-back" href="/app">← Dashboard</a>
   ${sbHtml}
 </nav>
 <div class="wrap">
   <article class="content">${content}</article>
   ${tocHtml}
 </div>
+<script>
+(function(){
+  var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
+  if (!links.length) return;
+  var headings = links.map(function(a){
+    return { a: a, el: document.getElementById(a.getAttribute('href').slice(1)) };
+  }).filter(function(x){ return x.el; });
+  function update(){
+    var scrollY = window.scrollY + 110;
+    var active = headings[0];
+    for (var i = 0; i < headings.length; i++){
+      if (headings[i].el.offsetTop <= scrollY) active = headings[i];
+    }
+    links.forEach(function(a){ a.classList.remove('act'); });
+    if (active) active.a.classList.add('act');
+  }
+  window.addEventListener('scroll', update, { passive: true });
+  update();
+})();
+</script>
 </body></html>`;
 }
 
@@ -687,8 +712,9 @@ function parseK6CSV(filePath) {
 
       TIMING.forEach(m => { cb.timing[m] = timBkts[m]; });
 
-      console.log(`[k6] JS assembly:  ${((Date.now()-t2)/1000).toFixed(1)}s`);
-      console.log(`[k6] total:        ${((Date.now()-t0)/1000).toFixed(1)}s`);
+      const tEnd = Date.now();
+      console.log(`[k6] JS assembly:  ${((tEnd-t2)/1000).toFixed(1)}s`);
+      console.log(`[k6] total:        ${((tEnd-t0)/1000).toFixed(1)}s`);
       return {
         timeSeries, statCards,
         txTable, apiTable, checksTable, checksTimeSeries,
@@ -702,6 +728,12 @@ function parseK6CSV(filePath) {
         txToGroup,
         timeRange: { start: allBuckets[0]||0, end: allBuckets[allBuckets.length-1]||0 },
         totalRows,
+        loadTiming: {
+          csvMs:      t1 - t0,
+          queriesMs:  t2 - t1,
+          assemblyMs: tEnd - t2,
+          totalMs:    tEnd - t0,
+        },
       };
     }
 
@@ -733,14 +765,30 @@ app.post('/api/parse-path', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  const nets = os.networkInterfaces();
-  const ips  = [];
-  for (const iface of Object.values(nets))
-    for (const addr of iface)
-      if (addr.family === 'IPv4' && !addr.internal) ips.push(addr.address);
-  console.log('\n🚀  k6 Dashboard running\n');
-  console.log(`   Local    →  http://localhost:${PORT}`);
-  ips.forEach(ip => console.log(`   Network  →  http://${ip}:${PORT}`));
-  console.log('\n   Tip: gunakan "Load via path" untuk file besar (skip upload copy)\n');
-});
+async function start() {
+  if (isDev) {
+    const { createServer: createVite } = await import('vite');
+    const vite = await createVite({
+      configFile: path.join(__dirname, 'vite.config.js'),
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
+    app.use(vite.middlewares);
+    console.log('[k6] Vite HMR middleware attached');
+  }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    const nets = os.networkInterfaces();
+    const ips  = [];
+    for (const iface of Object.values(nets))
+      for (const addr of iface)
+        if (addr.family === 'IPv4' && !addr.internal) ips.push(addr.address);
+    console.log('\n  k6 Dashboard running\n');
+    console.log(`   Local    →  http://localhost:${PORT}/app`);
+    ips.forEach(ip => console.log(`   Network  →  http://${ip}:${PORT}/app`));
+    console.log(`   Docs     →  http://localhost:${PORT}/docs`);
+    console.log(`   Mode     →  ${isDev ? 'development (Vite HMR)' : 'production'}\n`);
+  });
+}
+
+start().catch(err => { console.error(err); process.exit(1); });

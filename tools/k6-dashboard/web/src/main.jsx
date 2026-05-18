@@ -15,6 +15,8 @@ import './styles.css';
 
 Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Filler, Tooltip, Legend);
 
+const COLORS = ['#22d3ee','#39d98a','#ffaa3b','#a78bfa','#f472b6','#fb923c','#34d399','#60a5fa','#e879f9','#4ade80'];
+
 const navItems = [
   { id: 'dashboard', label: 'Results Dashboard' },
   { id: 'script', label: 'Script Generator' },
@@ -23,6 +25,11 @@ const navItems = [
 
 function App() {
   const [page, setPage] = React.useState('dashboard');
+  const [result, setResult] = React.useState(null);
+
+  if (page === 'dashboard' && result) {
+    return <FullScreenResults result={result} onBack={() => setResult(null)} onNewResult={setResult} />;
+  }
 
   return (
     <div className="app-shell">
@@ -47,13 +54,16 @@ function App() {
           ))}
         </nav>
 
+        <a className="legacy-link" href="/docs" target="_blank" rel="noreferrer">
+          Documentation
+        </a>
         <a className="legacy-link" href="/">
           Open legacy dashboard
         </a>
       </aside>
 
       <main className="main-panel">
-        {page === 'dashboard' && <DashboardPage />}
+        {page === 'dashboard' && <DashboardPage onData={setResult} />}
         {page === 'script' && <ScriptGeneratorPage />}
         {page === 'scenario' && <ScenarioGeneratorPage />}
       </main>
@@ -71,12 +81,10 @@ function PageHeader({ title, eyebrow, description }) {
   );
 }
 
-function DashboardPage() {
-  const [data, setData] = React.useState(null);
+function DashboardPage({ onData }) {
   const [path, setPath] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
-  const [granularity, setGranularity] = React.useState('auto');
 
   const loadResult = React.useCallback(async (request) => {
     setLoading(true);
@@ -85,13 +93,13 @@ function DashboardPage() {
       const res = await request();
       const json = await res.json();
       if (!json.success) throw new Error(json.error || 'Parse error');
-      setData(json);
+      onData(json);
     } catch (err) {
       setError(err.message || 'Failed to load result');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [onData]);
 
   const onUpload = (file) => {
     if (!file) return;
@@ -109,17 +117,12 @@ function DashboardPage() {
     }));
   };
 
-  const chartData = React.useMemo(() => {
-    if (!data) return null;
-    return buildChartView(data, granularity);
-  }, [data, granularity]);
-
   return (
     <>
       <PageHeader
         eyebrow="React Dashboard"
         title="Results Dashboard"
-        description="Load hasil CSV k6 lewat API yang sama dengan dashboard lama. Ini versi React awal untuk migrasi bertahap."
+        description="Load hasil CSV k6 untuk melihat hasil test secara visual."
       />
 
       <section className="panel load-panel">
@@ -145,16 +148,7 @@ function DashboardPage() {
         {error && <div className="error-text">{error}</div>}
       </section>
 
-      {data && chartData && (
-        <ResultsView
-          data={data}
-          chartData={chartData}
-          granularity={granularity}
-          setGranularity={setGranularity}
-        />
-      )}
-
-      {!data && !loading && (
+      {!loading && (
         <section className="work-grid">
           <div className="panel">
             <h2>Migration Status</h2>
@@ -163,7 +157,7 @@ function DashboardPage() {
               <li><span className="done" /> React shell ready</li>
               <li><span className="done" /> CSV load flow</li>
               <li><span className="done" /> Basic charts</li>
-              <li><span /> Full legacy parity</li>
+              <li><span className="done" /> Full legacy parity</li>
             </ul>
           </div>
           <div className="panel">
@@ -179,60 +173,324 @@ function DashboardPage() {
   );
 }
 
-function ResultsView({ data, chartData, granularity, setGranularity }) {
-  const sc = data.statCards;
-  const topTx = React.useMemo(() => [...(data.txTable || [])].sort((a, b) => b.p90 - a.p90).slice(0, 8), [data.txTable]);
-  const topApi = React.useMemo(() => [...(data.apiTable || [])].sort((a, b) => b.p90 - a.p90).slice(0, 8), [data.apiTable]);
+function FullScreenResults({ result: initialResult, onBack, onNewResult }) {
+  const [result, setResult] = React.useState(initialResult);
+  const [path, setPath] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const loadAnother = async () => {
+    if (!path.trim()) return;
+    setLoading(true); setError('');
+    try {
+      const res = await fetch('/api/parse-path', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: path.trim() }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error || 'Parse error');
+      setResult(json);
+      onNewResult(json);
+      setPath('');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fs-wrap">
+      <header className="fs-topbar">
+        <button className="fs-back" onClick={onBack}>← Back</button>
+        <span className="fs-testid">{result.statCards?.testid || 'result'}</span>
+        {result.loadTiming && (
+          <span className="fs-timing">
+            Loaded {(result.loadTiming.totalMs / 1000).toFixed(1)}s
+            <span className="fs-timing-detail">
+              · CSV {(result.loadTiming.csvMs / 1000).toFixed(1)}s
+              · Queries {(result.loadTiming.queriesMs / 1000).toFixed(1)}s
+              · Build {(result.loadTiming.assemblyMs / 1000).toFixed(1)}s
+            </span>
+          </span>
+        )}
+        <div className="fs-load-row">
+          <input
+            value={path}
+            placeholder="Load another path…"
+            onChange={(e) => setPath(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') loadAnother(); }}
+          />
+          <button onClick={loadAnother} disabled={loading}>{loading ? '…' : 'Load'}</button>
+          {error && <span className="fs-error">{error}</span>}
+        </div>
+      </header>
+      <div className="fs-body">
+        <ResultsView data={result} />
+      </div>
+    </div>
+  );
+}
+
+/* ─── Section (collapsible) ─────────────────────────────────────────────── */
+function Section({ title, children, defaultOpen = true, badge = null }) {
+  const [open, setOpen] = React.useState(defaultOpen);
+  return (
+    <div className="sec-block">
+      <div className="sec-hd" onClick={() => setOpen((o) => !o)}>
+        <span className={`sec-arrow ${open ? 'open' : ''}`}>▶</span>
+        <span className="sec-title">{title}</span>
+        {badge != null && <span className="sec-badge">{badge}</span>}
+        <span className="sec-line" />
+      </div>
+      {open && <div className="sec-body">{children}</div>}
+    </div>
+  );
+}
+
+/* ─── TimeFilterBar ─────────────────────────────────────────────────────── */
+function TimeFilterBar({ durationMs, filterRange, onApply, onReset, onGranChange, granularity }) {
+  const [startVal, setStartVal] = React.useState('');
+  const [endVal, setEndVal] = React.useState('');
+  const [granVal, setGranVal] = React.useState('');
+
+  function parseOffset(str) {
+    if (!str || !str.trim()) return null;
+    const parts = str.trim().split(':').map(Number);
+    if (parts.some(Number.isNaN)) return null;
+    if (parts.length === 1) return parts[0] * 1000;
+    if (parts.length === 2) return (parts[0] * 60 + parts[1]) * 1000;
+    if (parts.length === 3) return (parts[0] * 3600 + parts[1] * 60 + parts[2]) * 1000;
+    return null;
+  }
+
+  const handleApplyFilter = () => {
+    const s = parseOffset(startVal);
+    const e = parseOffset(endVal);
+    onApply(s, e);
+  };
+
+  const handleResetFilter = () => {
+    setStartVal('');
+    setEndVal('');
+    onReset();
+  };
+
+  const handleApplyGran = () => {
+    onGranChange(granVal.trim() || 'auto');
+  };
+
+  const handleResetGran = () => {
+    setGranVal('');
+    onGranChange('auto');
+  };
+
+  const totalSec = Math.round((durationMs || 0) / 1000);
+  const hh = Math.floor(totalSec / 3600);
+  const mm = Math.floor((totalSec % 3600) / 60);
+  const ss = totalSec % 60;
+  const durationLabel = hh
+    ? `${hh}h ${String(mm).padStart(2, '0')}m ${String(ss).padStart(2, '0')}s`
+    : `${mm}m ${String(ss).padStart(2, '0')}s`;
+
+  return (
+    <div className="tf-bar">
+      <span className="tf-label">Time Filter</span>
+      <div className="tf-fields">
+        <div className="tf-field">
+          <span>Start (hh:mm:ss)</span>
+          <input
+            className="tf-input"
+            value={startVal}
+            placeholder="0:00:00"
+            onChange={(e) => setStartVal(e.target.value)}
+          />
+        </div>
+        <span className="tf-arrow">→</span>
+        <div className="tf-field">
+          <span>End (hh:mm:ss)</span>
+          <input
+            className="tf-input"
+            value={endVal}
+            placeholder="hh:mm:ss"
+            onChange={(e) => setEndVal(e.target.value)}
+          />
+        </div>
+        <button className="tf-btn" onClick={handleApplyFilter}>Apply Filter</button>
+        <button className="tf-btn tf-reset" onClick={handleResetFilter}>Reset</button>
+        <span className="tf-sep" />
+        <div className="tf-field">
+          <span>Granularity (s)</span>
+          <input
+            className="tf-gran-in"
+            type="number"
+            min="1"
+            value={granVal}
+            placeholder="auto"
+            onChange={(e) => setGranVal(e.target.value)}
+          />
+        </div>
+        <button className="tf-btn" onClick={handleApplyGran}>Apply Gran</button>
+        <button className="tf-btn tf-reset" onClick={handleResetGran}>Auto</button>
+      </div>
+      {filterRange && <span className="filter-badge">filtered</span>}
+      <span className="tf-duration">Duration: {durationLabel}</span>
+    </div>
+  );
+}
+
+/* ─── ResultsView ───────────────────────────────────────────────────────── */
+function ResultsView({ data: baseData }) {
+  const [filterRange, setFilterRange] = React.useState(null);
+  const [granularity, setGranularity] = React.useState('auto');
+
+  const filteredData = React.useMemo(
+    () => filterRange ? recomputeFromBuckets(baseData, filterRange.startMs, filterRange.endMs) : baseData,
+    [baseData, filterRange]
+  );
+
+  const chartData = React.useMemo(
+    () => buildChartView(filteredData, granularity),
+    [filteredData, granularity]
+  );
+
+  const handleApply = (startOffsetMs, endOffsetMs) => {
+    if (startOffsetMs == null && endOffsetMs == null) {
+      setFilterRange(null);
+    } else {
+      setFilterRange({ startMs: startOffsetMs, endMs: endOffsetMs });
+    }
+  };
+
+  const handleReset = () => {
+    setFilterRange(null);
+  };
+
+  const sc = filteredData.statCards;
+  const durationMs = filteredData.timeRange.end - filteredData.timeRange.start;
+
+  const checksRows = React.useMemo(
+    () => filteredData.checksTable || [],
+    [filteredData]
+  );
 
   return (
     <section className="results-stack">
       <div className="result-topline">
         <div>
           <strong>{sc.testid || 'test result'}</strong>
-          <span>{fmtN(data.totalRows)} rows · {fmtDuration(data.timeRange.end - data.timeRange.start)}</span>
+          <span>{fmtN(filteredData.totalRows)} rows · {fmtDuration(durationMs)}</span>
         </div>
-        <label className="gran-control">
-          Granularity
-          <select value={granularity} onChange={(event) => setGranularity(event.target.value)}>
-            <option value="auto">Auto ({chartData.granularitySec}s)</option>
-            <option value="1">1s</option>
-            <option value="5">5s</option>
-            <option value="10">10s</option>
-            <option value="30">30s</option>
-            <option value="60">60s</option>
-            <option value="300">5m</option>
-          </select>
-        </label>
       </div>
 
-      <div className="stat-grid">
-        <StatCard label="Total Requests" value={fmtN(sc.totalReqs)} sub={`VUs max: ${sc.vusMax}`} />
-        <StatCard label="Success" value={fmtN(sc.successReqs)} sub={`${successPct(sc)}% success`} tone="good" />
-        <StatCard label="Errors" value={fmtN(sc.errorReqs)} sub={`${sc.errorPct}% error`} tone="bad" />
-        <StatCard label="Peak TPS" value={fmtN(sc.peakTps)} sub="transactions/s" tone="cyan" />
-        <StatCard label="Peak RPS" value={fmtN(sc.peakRps)} sub="requests/s" tone="warn" />
-        <StatCard label="p95 Duration" value={fmtMs(sc.p95Duration)} sub={`p99: ${fmtMs(sc.p99Duration)}`} tone="purple" />
-      </div>
+      <TimeFilterBar
+        durationMs={baseData.timeRange.end - baseData.timeRange.start}
+        filterRange={filterRange}
+        onApply={handleApply}
+        onReset={handleReset}
+        onGranChange={setGranularity}
+        granularity={granularity}
+      />
 
-      <div className="chart-grid">
-        <ChartPanel title="TPS Overall" series={[{ label: 'TPS', data: chartData.tpsAll, color: '#22d3ee', fill: true }]} />
-        <ChartPanel title="RPS Overall" series={[{ label: 'RPS', data: chartData.rpsAll, color: '#39d98a', fill: true }]} />
-        <ChartPanel title="Transaction Response Time" unit="ms" series={[
-          { label: 'Avg all', data: chartData.txResponseTimeAll, color: '#ffaa3b', fill: true },
-        ]} />
-        <ChartPanel title="API Response Time" unit="ms" series={[
-          { label: 'Avg all', data: chartData.apiResponseTimeAll, color: '#a78bfa', fill: true },
-        ]} />
-      </div>
+      {/* ── Section: Performance Overview ── */}
+      <Section title="Performance Overview" defaultOpen={true}>
+        <div className="stat-grid">
+          <StatCard label="Total Requests" value={fmtN(sc.totalReqs)} sub={`VUs max: ${sc.vusMax}`} />
+          <StatCard label="Success" value={fmtN(sc.successReqs)} sub={`${successPct(sc)}% success`} tone="good" />
+          <StatCard label="Errors" value={fmtN(sc.errorReqs)} sub={`${sc.errorPct}% error`} tone="bad" />
+          <StatCard label="Peak TPS" value={fmtN(sc.peakTps)} sub="transactions/s" tone="cyan" />
+          <StatCard label="Peak RPS" value={fmtN(sc.peakRps)} sub="requests/s" tone="warn" />
+          <StatCard label="p95 (s)" value={fmtSec(sc.p95Duration)} sub={`p99: ${fmtSec(sc.p99Duration)} s`} tone="purple" />
+          <StatCard label="Avg RT (s)" value={fmtSec(sc.avgDuration)} sub="avg response time" />
+          <StatCard
+            label="Checks"
+            value={`${sc.checksSuccessRate ?? '-'}%`}
+            sub="check success rate"
+            tone={sc.checksSuccessRate >= 99 ? 'good' : sc.checksSuccessRate > 0 ? 'bad' : ''}
+          />
+        </div>
+        <div className="chart-grid">
+          <ChartPanel
+            title="VUs · RPS · Errors"
+            series={buildMultiSeries({
+              VUs: chartData.vus,
+              RPS: chartData.rpsAll,
+              Errors: chartData.errorsAll,
+            }, [COLORS[0], COLORS[1], '#ff4c6a'])}
+          />
+          <ChartPanel
+            title="VU Progression"
+            series={[{ label: 'VUs', data: chartData.vus, color: COLORS[0], fill: true }]}
+          />
+        </div>
+      </Section>
 
-      <div className="table-grid">
-        <ResultTable title="Top Slow Transactions" rows={topTx} primary="transaction" />
-        <ResultTable title="Top Slow APIs" rows={topApi} primary="api" secondary="transaction" />
-      </div>
+      {/* ── Section: TPS · RPS · Response Time ── */}
+      <Section title="TPS · RPS · Response Time" defaultOpen={true}>
+        <div className="chart-grid">
+          <ChartPanel title="TPS Overall" series={[{ label: 'TPS', data: chartData.tpsAll, color: '#22d3ee', fill: true }]} />
+          <ChartPanel title="RPS Overall" series={[{ label: 'RPS', data: chartData.rpsAll, color: '#39d98a', fill: true }]} />
+          <ChartPanel
+            title="TPS by Transaction"
+            series={buildMultiSeries(chartData.tpsByTx, COLORS)}
+            multiLine
+          />
+          <ChartPanel
+            title="RPS by API"
+            series={buildMultiSeries(chartData.rpsByApi, COLORS)}
+            multiLine
+          />
+        </div>
+        <div className="chart-grid">
+          <ChartPanel
+            title="Transaction Response Time"
+            unit=" s"
+            series={
+              Object.keys(chartData.txResponseTime || {}).length > 0
+                ? buildMultiSeries(chartData.txResponseTime, COLORS)
+                : [{ label: 'Avg all', data: chartData.txResponseTimeAll, color: '#ffaa3b', fill: true }]
+            }
+            multiLine={Object.keys(chartData.txResponseTime || {}).length > 0}
+          />
+          <ChartPanel
+            title="API Response Time"
+            unit=" s"
+            series={
+              Object.keys(chartData.apiResponseTime || {}).length > 0
+                ? buildMultiSeries(chartData.apiResponseTime, COLORS)
+                : [{ label: 'Avg all', data: chartData.apiResponseTimeAll, color: '#a78bfa', fill: true }]
+            }
+            multiLine={Object.keys(chartData.apiResponseTime || {}).length > 0}
+          />
+        </div>
+        <TpsSummaryTable data={filteredData} />
+        <RpsSummaryTable data={filteredData} />
+      </Section>
+
+      {/* ── Section: Checks ── */}
+      {checksRows.length > 0 && (
+        <Section title="Checks" defaultOpen={false} badge={checksRows.length}>
+          <div className="chart-grid">
+            <ChecksTable rows={checksRows} />
+            <ChartPanel
+              title="Checks Pass Rate Over Time (%)"
+              series={[{ label: 'Rate %', data: filteredData.checksTimeSeries || [], color: '#39d98a', fill: true }]}
+            />
+          </div>
+        </Section>
+      )}
+
+      {/* ── Section: Run Result ── */}
+      <Section title="Run Result" defaultOpen={true}>
+        <FullTxTable rows={filteredData.txTable || []} />
+        <FullApiTable rows={filteredData.apiTable || []} />
+      </Section>
     </section>
   );
 }
 
+/* ─── StatCard ──────────────────────────────────────────────────────────── */
 function StatCard({ label, value, sub, tone = '' }) {
   return (
     <div className={`stat-card ${tone}`}>
@@ -243,15 +501,20 @@ function StatCard({ label, value, sub, tone = '' }) {
   );
 }
 
-function ChartPanel({ title, series, unit = '' }) {
+/* ─── ChartPanel — dispatches to LineChart or MultiLineChart ────────────── */
+function ChartPanel({ title, series, unit = '', multiLine = false }) {
   return (
     <div className="panel chart-panel">
       <h2>{title}</h2>
-      <LineChart series={series} unit={unit} />
+      {multiLine
+        ? <MultiLineChart series={series} unit={unit} />
+        : <LineChart series={series} unit={unit} />
+      }
     </div>
   );
 }
 
+/* ─── LineChart ─────────────────────────────────────────────────────────── */
 function LineChart({ series, unit }) {
   const canvasRef = React.useRef(null);
 
@@ -297,42 +560,500 @@ function LineChart({ series, unit }) {
     return () => chart.destroy();
   }, [series, unit]);
 
-  return <canvas ref={canvasRef} />;
-}
-
-function ResultTable({ title, rows, primary, secondary }) {
   return (
-    <div className="panel table-panel">
-      <h2>{title}</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Name</th>
-            <th>p90</th>
-            <th>Avg</th>
-            <th>Rate</th>
-            <th>Sample</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr key={`${row.transaction}-${row.api || row.transaction}`}>
-              <td>
-                <strong>{row[primary]}</strong>
-                {secondary && <small>{row[secondary]}</small>}
-              </td>
-              <td>{fmtMs(row.p90)}</td>
-              <td>{fmtMs(row.avg)}</td>
-              <td>{row.successRate}%</td>
-              <td>{fmtN(row.sample)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="chart-body">
+      <canvas ref={canvasRef} />
     </div>
   );
 }
 
+/* ─── MultiLineChart ────────────────────────────────────────────────────── */
+function MultiLineChart({ series, unit }) {
+  const canvasRef = React.useRef(null);
+  const [showAll, setShowAll] = React.useState(false);
+  const TOP = 8;
+
+  // Sort by peak value descending
+  const sorted = React.useMemo(() => {
+    if (!series || series.length === 0) return [];
+    return [...series].sort((a, b) => {
+      const peakA = (a.data || []).reduce((m, p) => Math.max(m, p.v || 0), 0);
+      const peakB = (b.data || []).reduce((m, p) => Math.max(m, p.v || 0), 0);
+      return peakB - peakA;
+    });
+  }, [series]);
+
+  const visible = showAll ? sorted : sorted.slice(0, TOP);
+  const extra = sorted.length - TOP;
+
+  React.useEffect(() => {
+    if (!canvasRef.current) return;
+    const chart = new Chart(canvasRef.current, {
+      type: 'line',
+      data: {
+        labels: visible[0]?.data.map((p) => fmtTime(p.t)) || [],
+        datasets: visible.map((item) => ({
+          label: item.label,
+          data: (item.data || []).map((p) => p.v),
+          borderColor: item.color,
+          backgroundColor: withAlpha(item.color, 0.08),
+          borderWidth: 1.5,
+          pointRadius: 0,
+          tension: 0.32,
+          fill: false,
+          spanGaps: true,
+        })),
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: false,
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(11,13,20,.96)',
+            borderColor: '#242a3d',
+            borderWidth: 1,
+            callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${Number(ctx.parsed.y || 0).toFixed(2)}${unit}`,
+            },
+          },
+        },
+        scales: {
+          x: { ticks: { color: '#7880a0', maxTicksLimit: 8 }, grid: { color: 'rgba(255,255,255,.04)' } },
+          y: { beginAtZero: true, ticks: { color: '#7880a0' }, grid: { color: 'rgba(255,255,255,.04)' } },
+        },
+      },
+    });
+    return () => chart.destroy();
+  }, [visible, unit]);
+
+  return (
+    <div>
+      <div className="chart-body">
+        <canvas ref={canvasRef} />
+      </div>
+      <div className="multi-leg">
+        {visible.map((item) => (
+          <span key={item.label} className="leg-item">
+            <span className="leg-dot" style={{ background: item.color }} />
+            {item.label}
+          </span>
+        ))}
+        {extra > 0 && !showAll && (
+          <button className="leg-toggle" onClick={() => setShowAll(true)}>+ {extra} more</button>
+        )}
+        {showAll && extra > 0 && (
+          <button className="leg-toggle" onClick={() => setShowAll(false)}>show less</button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ─── ChecksTable ───────────────────────────────────────────────────────── */
+function ChecksTable({ rows }) {
+  const [sort, setSort] = React.useState({ col: 'pass', dir: 'desc' });
+
+  const sorted = React.useMemo(() => {
+    const arr = [...rows];
+    arr.sort((a, b) => {
+      const va = a[sort.col] ?? 0;
+      const vb = b[sort.col] ?? 0;
+      const cmp = typeof va === 'string' ? va.localeCompare(vb) : (va - vb);
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [rows, sort]);
+
+  const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const th = (col, label) => (
+    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
+      {label}
+    </th>
+  );
+
+  const handleExport = () => {
+    const header = 'Check,Pass,Fail,Total';
+    const csvRows = sorted.map((r) => `"${r.check || ''}",${r.pass || 0},${r.fail || 0},${(r.pass || 0) + (r.fail || 0)}`);
+    exportCsv([header, ...csvRows].join('\n'), 'checks.csv');
+  };
+
+  return (
+    <div className="panel table-panel">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>Checks</h2>
+        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+      </div>
+      <div className="tw"><table>
+        <thead>
+          <tr>
+            {th('check', 'Check')}
+            {th('pass', 'Pass')}
+            {th('fail', 'Fail')}
+            {th('total', 'Total')}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row, i) => {
+            const total = row.total || (row.pass || 0) + (row.fail || 0);
+            const failPct = total ? ((row.fail || 0) / total * 100).toFixed(1) : '0.0';
+            return (
+              <tr key={i}>
+                <td>{row.check}</td>
+                <td>{fmtN(row.pass)}</td>
+                <td className={row.fail > 0 ? 'td-bad' : ''}>{fmtN(row.fail)}</td>
+                <td>{fmtN(total)} <small>{failPct}% fail</small></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table></div>
+    </div>
+  );
+}
+
+/* ─── TpsSummaryTable ───────────────────────────────────────────────────── */
+function TpsSummaryTable({ data }) {
+  const [sort, setSort] = React.useState({ col: 'avgTps', dir: 'desc' });
+
+  const rows = React.useMemo(() => {
+    const tpsByTx = data.tpsByTx || {};
+    return Object.entries(tpsByTx).map(([tx, series]) => {
+      const vals = (series || []).filter((p) => p.v > 0).map((p) => p.v);
+      const all = (series || []).map((p) => p.v || 0);
+      const total = all.length || 1;
+      const minTps = vals.length ? vals.reduce((m, v) => Math.min(m, v), Infinity) : 0;
+      const maxTps = vals.length ? vals.reduce((m, v) => Math.max(m, v), 0) : 0;
+      const avgTps = all.reduce((s, v) => s + v, 0) / total;
+      return { tx, minTps, maxTps, avgTps };
+    });
+  }, [data]);
+
+  const sorted = React.useMemo(() => {
+    const arr = [...rows];
+    arr.sort((a, b) => {
+      const va = a[sort.col] ?? 0;
+      const vb = b[sort.col] ?? 0;
+      const cmp = typeof va === 'string' ? va.localeCompare(vb) : (va - vb);
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [rows, sort]);
+
+  const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const th = (col, label) => (
+    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
+      {label}
+    </th>
+  );
+
+  const handleExport = () => {
+    const header = 'Transaction,Min TPS,Avg TPS,Max TPS';
+    const csvRows = sorted.map((r) => `"${r.tx}",${r.minTps.toFixed(2)},${r.avgTps.toFixed(2)},${r.maxTps.toFixed(2)}`);
+    exportCsv([header, ...csvRows].join('\n'), 'tps-summary.csv');
+  };
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="panel table-panel">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>TPS Summary</h2>
+        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+      </div>
+      <div className="tw"><table>
+        <thead>
+          <tr>
+            {th('tx', 'Transaction')}
+            {th('minTps', 'Min TPS')}
+            {th('avgTps', 'Avg TPS')}
+            {th('maxTps', 'Max TPS')}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row) => (
+            <tr key={row.tx}>
+              <td>{row.tx}</td>
+              <td>{row.minTps.toFixed(2)}</td>
+              <td>{row.avgTps.toFixed(2)}</td>
+              <td>{row.maxTps.toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div>
+    </div>
+  );
+}
+
+/* ─── RpsSummaryTable ───────────────────────────────────────────────────── */
+function RpsSummaryTable({ data }) {
+  const [sort, setSort] = React.useState({ col: 'avgRps', dir: 'desc' });
+
+  const rows = React.useMemo(() => {
+    const apiObj = (data.clientBuckets || {}).api || {};
+    return Object.entries(apiObj).map(([key, entry]) => {
+      const tx = entry.transaction || key;
+      const apiName = entry.api || key;
+      const tsMap = entry.ts || {};
+      const vals = Object.values(tsMap).map((b) => b.ok || 0).filter((v) => v > 0);
+      const all = (data.allBuckets || []).map((t) => tsMap[t]?.ok || 0);
+      const total = all.length || 1;
+      const minRps = vals.length ? vals.reduce((m, v) => Math.min(m, v), Infinity) : 0;
+      const maxRps = vals.length ? vals.reduce((m, v) => Math.max(m, v), 0) : 0;
+      const avgRps = all.reduce((s, v) => s + v, 0) / total;
+      const p90Rps = vals.length ? [...vals].sort((a, b) => a - b)[Math.floor(vals.length * 0.9)] || 0 : 0;
+      return { key, tx, apiName, minRps, avgRps, maxRps, p90Rps };
+    });
+  }, [data]);
+
+  const sorted = React.useMemo(() => {
+    const arr = [...rows];
+    arr.sort((a, b) => {
+      const va = a[sort.col] ?? 0;
+      const vb = b[sort.col] ?? 0;
+      const cmp = typeof va === 'string' ? va.localeCompare(vb) : (va - vb);
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [rows, sort]);
+
+  const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const th = (col, label) => (
+    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
+      {label}
+    </th>
+  );
+
+  const handleExport = () => {
+    const header = 'Transaction,API,Min RPS,Avg RPS,p90 RPS,Max RPS';
+    const csvRows = sorted.map((r) => `"${r.tx}","${r.apiName}",${r.minRps.toFixed(2)},${r.avgRps.toFixed(2)},${r.p90Rps.toFixed(2)},${r.maxRps.toFixed(2)}`);
+    exportCsv([header, ...csvRows].join('\n'), 'rps-summary.csv');
+  };
+
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="panel table-panel">
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+        <h2 style={{ margin: 0 }}>RPS Summary — by API</h2>
+        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+      </div>
+      <div className="tw"><table>
+        <thead>
+          <tr>
+            {th('tx', 'Transaction')}
+            {th('apiName', 'API')}
+            {th('minRps', 'Min RPS')}
+            {th('avgRps', 'Avg RPS')}
+            {th('p90Rps', 'p90 RPS')}
+            {th('maxRps', 'Max RPS')}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row) => (
+            <tr key={row.key}>
+              <td>{row.tx}</td>
+              <td>{row.apiName}</td>
+              <td>{row.minRps.toFixed(2)}</td>
+              <td>{row.avgRps.toFixed(2)}</td>
+              <td>{row.p90Rps.toFixed(2)}</td>
+              <td>{row.maxRps.toFixed(2)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div>
+    </div>
+  );
+}
+
+/* ─── FullTxTable ───────────────────────────────────────────────────────── */
+function FullTxTable({ rows }) {
+  const [sort, setSort] = React.useState({ col: 'p90', dir: 'desc' });
+  const [search, setSearch] = React.useState('');
+
+  const filtered = React.useMemo(
+    () => rows.filter((r) => !search || (r.transaction || '').toLowerCase().includes(search.toLowerCase())),
+    [rows, search]
+  );
+
+  const sorted = React.useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      const va = a[sort.col] ?? 0;
+      const vb = b[sort.col] ?? 0;
+      const cmp = typeof va === 'string' ? va.localeCompare(vb) : (va - vb);
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sort]);
+
+  const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const th = (col, label) => (
+    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
+      {label}
+    </th>
+  );
+
+  const handleExport = () => {
+    const header = 'Transaction,Min (s),Avg (s),Max (s),p90 (s),Success,Error,Sample,Rate';
+    const csvRows = sorted.map((r) =>
+      `"${r.transaction}",${fmtSec(r.min)},${fmtSec(r.avg)},${fmtSec(r.max)},${fmtSec(r.p90)},${r.success || 0},${r.error || 0},${r.sample || 0},${r.successRate || 0}%`
+    );
+    exportCsv([header, ...csvRows].join('\n'), 'transactions.csv');
+  };
+
+  return (
+    <div className="panel table-panel">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, flex: 1 }}>Transactions</h2>
+        <input
+          className="search-input"
+          placeholder="Search transaction…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+      </div>
+      <div className="tw"><table>
+        <thead>
+          <tr>
+            {th('transaction', 'Transaction')}
+            {th('min', 'Min (s)')}
+            {th('avg', 'Avg (s)')}
+            {th('max', 'Max (s)')}
+            {th('p90', 'p90 (s)')}
+            {th('success', 'Success')}
+            {th('error', 'Error')}
+            {th('sample', 'Sample')}
+            {th('successRate', 'Rate')}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row) => (
+            <tr key={row.transaction}>
+              <td><strong>{row.transaction}</strong></td>
+              <td>{fmtSec(row.min)}</td>
+              <td>{fmtSec(row.avg)}</td>
+              <td>{fmtSec(row.max)}</td>
+              <td>{fmtSec(row.p90)}</td>
+              <td>{fmtN(row.success)}</td>
+              <td className={row.error > 0 ? 'td-bad' : ''}>{fmtN(row.error)}</td>
+              <td>{fmtN(row.sample)}</td>
+              <td>{row.successRate}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div>
+    </div>
+  );
+}
+
+/* ─── FullApiTable ──────────────────────────────────────────────────────── */
+function FullApiTable({ rows }) {
+  const [sort, setSort] = React.useState({ col: 'p90', dir: 'desc' });
+  const [search, setSearch] = React.useState('');
+  const [txFilter, setTxFilter] = React.useState('');
+
+  const txOptions = React.useMemo(() => {
+    const set = new Set(rows.map((r) => r.transaction).filter(Boolean));
+    return [...set].sort();
+  }, [rows]);
+
+  const filtered = React.useMemo(() => {
+    return rows.filter((r) => {
+      const matchTx = !txFilter || r.transaction === txFilter;
+      const matchSearch = !search || (r.api || '').toLowerCase().includes(search.toLowerCase());
+      return matchTx && matchSearch;
+    });
+  }, [rows, search, txFilter]);
+
+  const sorted = React.useMemo(() => {
+    const arr = [...filtered];
+    arr.sort((a, b) => {
+      const va = a[sort.col] ?? 0;
+      const vb = b[sort.col] ?? 0;
+      const cmp = typeof va === 'string' ? va.localeCompare(vb) : (va - vb);
+      return sort.dir === 'asc' ? cmp : -cmp;
+    });
+    return arr;
+  }, [filtered, sort]);
+
+  const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
+  const th = (col, label) => (
+    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
+      {label}
+    </th>
+  );
+
+  const handleExport = () => {
+    const header = 'Business Process,API,Min (s),Avg (s),Max (s),p90 (s),Success,Error,Sample,Rate';
+    const csvRows = sorted.map((r) =>
+      `"${r.transaction}","${r.api}",${fmtSec(r.min)},${fmtSec(r.avg)},${fmtSec(r.max)},${fmtSec(r.p90)},${r.success || 0},${r.error || 0},${r.sample || 0},${r.successRate || 0}%`
+    );
+    exportCsv([header, ...csvRows].join('\n'), 'apis.csv');
+  };
+
+  return (
+    <div className="panel table-panel">
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+        <h2 style={{ margin: 0, flex: 1 }}>APIs</h2>
+        {txOptions.length > 0 && (
+          <select
+            value={txFilter}
+            onChange={(e) => setTxFilter(e.target.value)}
+            style={{ fontSize: 12, padding: '4px 8px' }}
+          >
+            <option value="">All transactions</option>
+            {txOptions.map((tx) => <option key={tx} value={tx}>{tx}</option>)}
+          </select>
+        )}
+        <input
+          className="search-input"
+          placeholder="Search API…"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+      </div>
+      <div className="tw"><table>
+        <thead>
+          <tr>
+            {th('transaction', 'Business Process')}
+            {th('api', 'API')}
+            {th('min', 'Min (s)')}
+            {th('avg', 'Avg (s)')}
+            {th('max', 'Max (s)')}
+            {th('p90', 'p90 (s)')}
+            {th('success', 'Success')}
+            {th('error', 'Error')}
+            {th('sample', 'Sample')}
+            {th('successRate', 'Rate')}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row, i) => (
+            <tr key={`${row.transaction}-${row.api}-${i}`}>
+              <td><small>{row.transaction}</small></td>
+              <td><strong>{row.api}</strong></td>
+              <td>{fmtSec(row.min)}</td>
+              <td>{fmtSec(row.avg)}</td>
+              <td>{fmtSec(row.max)}</td>
+              <td>{fmtSec(row.p90)}</td>
+              <td>{fmtN(row.success)}</td>
+              <td className={row.error > 0 ? 'td-bad' : ''}>{fmtN(row.error)}</td>
+              <td>{fmtN(row.sample)}</td>
+              <td>{row.successRate}%</td>
+            </tr>
+          ))}
+        </tbody>
+      </table></div>
+    </div>
+  );
+}
+
+/* ─── ScriptGeneratorPage (unchanged) ──────────────────────────────────── */
 function ScriptGeneratorPage() {
   const [channel, setChannel] = React.useState('_exampleChannel');
   const [bpName, setBpName] = React.useState('BP001_LoginInquiry');
@@ -487,6 +1208,7 @@ function ScriptGeneratorPage() {
   );
 }
 
+/* ─── ScenarioGeneratorPage (unchanged) ────────────────────────────────── */
 function ScenarioGeneratorPage() {
   const [scenarioName, setScenarioName] = React.useState('scenario_myproject');
   const [rampStep, setRampStep] = React.useState(5);
@@ -583,20 +1305,160 @@ function ScenarioGeneratorPage() {
   );
 }
 
+/* ─── buildChartView ────────────────────────────────────────────────────── */
 function buildChartView(data, selectedGranularity) {
   const durationSec = Math.max(1, Math.round((data.timeRange.end - data.timeRange.start) / 1000));
   const auto = roundNice(Math.ceil(durationSec / 250));
   const granularitySec = selectedGranularity === 'auto' ? auto : Math.max(1, Number(selectedGranularity));
   const granMs = granularitySec * 1000;
+  const start = data.timeRange.start;
+
   return {
     granularitySec,
-    tpsAll: aggregateSeries(data.tpsAll, granMs, 'rate', data.timeRange.start),
-    rpsAll: aggregateSeries(data.rpsAll, granMs, 'rate', data.timeRange.start),
-    txResponseTimeAll: aggregateSeries(data.txResponseTimeAll, granMs, 'avg', data.timeRange.start),
-    apiResponseTimeAll: aggregateSeries(data.apiResponseTimeAll, granMs, 'avg', data.timeRange.start),
+    tpsAll: aggregateSeries(data.tpsAll, granMs, 'rate', start),
+    rpsAll: aggregateSeries(data.rpsAll, granMs, 'rate', start),
+    txResponseTimeAll: aggregateSeries(data.txResponseTimeAll, granMs, 'avg', start).map((p) => ({ ...p, v: p.v / 1000 })),
+    apiResponseTimeAll: aggregateSeries(data.apiResponseTimeAll, granMs, 'avg', start).map((p) => ({ ...p, v: p.v / 1000 })),
+    vus: aggregateSeries(
+      data.timeSeries?.['vus_max']?.length
+        ? data.timeSeries['vus_max']
+        : data.timeSeries?.['vus']?.length
+          ? data.timeSeries['vus']
+          : (Object.entries(data.timeSeries || {}).find(([k]) => k.toLowerCase().includes('vu'))?.[1] || []),
+      granMs, 'avg', start
+    ),
+    errorsAll: aggregateSeries(
+      (data.allBuckets || []).map((t) => ({ t, v: data.clientBuckets?.httpReqs?.[t]?.err || 0 })),
+      granMs, 'rate', start
+    ),
+    tpsByTx: Object.fromEntries(
+      Object.entries(data.tpsByTx || {}).map(([tx, s]) => [tx, aggregateSeries(s, granMs, 'rate', start)])
+    ),
+    rpsByApi: Object.fromEntries(
+      Object.entries(data.rpsByApi || {}).map(([api, s]) => [api, aggregateSeries(s, granMs, 'rate', start)])
+    ),
+    txResponseTime: Object.fromEntries(
+      Object.entries(data.txResponseTime || {}).map(([tx, s]) => [tx, aggregateSeries((s || []).filter((p) => p.v != null), granMs, 'avg', start).map((p) => ({ ...p, v: p.v / 1000 }))])
+    ),
+    apiResponseTime: Object.fromEntries(
+      Object.entries(data.apiResponseTime || {}).map(([api, s]) => [api, aggregateSeries((s || []).filter((p) => p.v != null), granMs, 'avg', start).map((p) => ({ ...p, v: p.v / 1000 }))])
+    ),
   };
 }
 
+/* ─── recomputeFromBuckets ──────────────────────────────────────────────── */
+function recomputeFromBuckets(data, startOffsetMs, endOffsetMs) {
+  const baseStart = data.timeRange.start;
+  const baseEnd = data.timeRange.end;
+  const lo = startOffsetMs != null ? baseStart + startOffsetMs : baseStart;
+  const hi = endOffsetMs != null ? baseStart + endOffsetMs : baseEnd;
+
+  const allBuckets = (data.allBuckets || []).filter((t) => t >= lo && t <= hi);
+  if (allBuckets.length === 0) return data;
+
+  const rangeStart = allBuckets[0];
+  const rangeEnd = allBuckets[allBuckets.length - 1];
+
+  // tpsAll / rpsAll
+  const tpsAll = (data.tpsAll || []).filter((p) => p.t >= lo && p.t <= hi);
+  const rpsAll = (data.rpsAll || []).filter((p) => p.t >= lo && p.t <= hi);
+  const txResponseTimeAll = (data.txResponseTimeAll || []).filter((p) => p.t >= lo && p.t <= hi);
+  const apiResponseTimeAll = (data.apiResponseTimeAll || []).filter((p) => p.t >= lo && p.t <= hi);
+
+  // tpsByTx
+  const tpsByTx = Object.fromEntries(
+    Object.entries(data.tpsByTx || {}).map(([tx, s]) => [tx, (s || []).filter((p) => p.t >= lo && p.t <= hi)])
+  );
+
+  // rpsByApi
+  const rpsByApi = Object.fromEntries(
+    Object.entries(data.rpsByApi || {}).map(([api, s]) => [api, (s || []).filter((p) => p.t >= lo && p.t <= hi)])
+  );
+
+  // txResponseTime / apiResponseTime
+  const txResponseTime = Object.fromEntries(
+    Object.entries(data.txResponseTime || {}).map(([tx, s]) => [tx, (s || []).filter((p) => p.t >= lo && p.t <= hi)])
+  );
+  const apiResponseTime = Object.fromEntries(
+    Object.entries(data.apiResponseTime || {}).map(([tx, s]) => [tx, (s || []).filter((p) => p.t >= lo && p.t <= hi)])
+  );
+
+  // recompute stat cards from filtered buckets
+  const cb = data.clientBuckets || {};
+  let totalReqs = 0, successReqs = 0, errorReqs = 0;
+  let peakTps = 0, peakRps = 0;
+
+  // walk through tpsAll/rpsAll for peaks
+  tpsAll.forEach((p) => { if (p.v > peakTps) peakTps = p.v; });
+  rpsAll.forEach((p) => { if (p.v > peakRps) peakRps = p.v; });
+
+  // count reqs from httpReqs buckets
+  const httpReqs = cb.httpReqs || {};
+  allBuckets.forEach((t) => {
+    const b = httpReqs[t];
+    if (b) {
+      totalReqs += (b.ok || 0) + (b.err || 0);
+      successReqs += (b.ok || 0);
+      errorReqs += (b.err || 0);
+    }
+  });
+  const errorPct = totalReqs ? ((errorReqs / totalReqs) * 100).toFixed(2) : '0.00';
+
+  const sc = {
+    ...data.statCards,
+    totalReqs,
+    successReqs,
+    errorReqs,
+    errorPct,
+    peakTps: Math.round(peakTps),
+    peakRps: Math.round(peakRps),
+  };
+
+  const timeSeries = Object.fromEntries(
+    Object.entries(data.timeSeries || {}).map(([k, s]) => [k, (s || []).filter((p) => p.t >= lo && p.t <= hi)])
+  );
+
+  return {
+    ...data,
+    allBuckets,
+    timeRange: { start: rangeStart, end: rangeEnd },
+    tpsAll,
+    rpsAll,
+    txResponseTimeAll,
+    apiResponseTimeAll,
+    tpsByTx,
+    rpsByApi,
+    txResponseTime,
+    apiResponseTime,
+    timeSeries,
+    statCards: sc,
+  };
+}
+
+/* ─── buildMultiSeries ──────────────────────────────────────────────────── */
+function buildMultiSeries(seriesMap, colors) {
+  if (!seriesMap) return [];
+  return Object.entries(seriesMap).map(([label, data], i) => ({
+    label,
+    data: data || [],
+    color: colors[i % colors.length],
+  }));
+}
+
+/* ─── exportCsv ─────────────────────────────────────────────────────────── */
+function exportCsv(content, filename) {
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/* ─── Script / Scenario builder helpers (unchanged) ────────────────────── */
 function buildScriptPreview({ channel, bpName, baseUrl, steps }) {
   const safeBp = bpName || 'BP001_NamaBP';
   const renderedSteps = steps.length ? steps.map((step) => {
@@ -696,6 +1558,7 @@ export const options = createOptions(bpList, MODE, loadConfig);
 export default function () { dispatchVu(bpList, MODE); }`;
 }
 
+/* ─── Utility functions (all unchanged) ────────────────────────────────── */
 function aggregateSeries(series = [], granMs, mode, start) {
   if (granMs <= 1000) return series;
   const buckets = new Map();
@@ -731,9 +1594,9 @@ function fmtDuration(ms) {
   return min ? `${min}m ${String(rest).padStart(2, '0')}s` : `${rest}s`;
 }
 
-function fmtMs(v) {
+function fmtSec(v) {
   if (v == null || Number.isNaN(Number(v))) return '-';
-  return v >= 1000 ? `${(v / 1000).toFixed(2)}s` : `${Number(v).toFixed(1)}ms`;
+  return (Number(v) / 1000).toFixed(3);
 }
 
 function fmtN(v) {
