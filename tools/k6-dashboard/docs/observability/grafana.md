@@ -6,7 +6,7 @@ Stack: **k6 → Prometheus (remote write) → Grafana** + **k6 → Loki** untuk 
 
 ### 1. Prometheus
 
-Jalankan dengan flag `--web.enable-remote-write-receiver`. Gunakan config dari [lib/observability/k6-perf-framework_prometheus.yml](../../lib/observability/k6-perf-framework_prometheus.yml).
+Jalankan dengan flag `--web.enable-remote-write-receiver`. Gunakan config dari `lib/observability/k6-perf-framework_prometheus.yml` (ada di root repo).
 
 ### 2. Loki
 

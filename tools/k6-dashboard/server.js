@@ -1,10 +1,12 @@
-const express       = require('express');
-const multer        = require('multer');
-const fs            = require('fs');
-const path          = require('path');
-const os            = require('os');
-const duckdb        = require('duckdb');
-const { marked }    = require('marked');
+import express  from 'express';
+import multer   from 'multer';
+import fs       from 'fs';
+import path     from 'path';
+import os       from 'os';
+import duckdb   from 'duckdb';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const app    = express();
 const PORT   = process.env.PORT || 3000;
@@ -13,11 +15,12 @@ const isDev  = process.argv.includes('--dev');
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
-const reactDist = path.join(__dirname, 'web', 'dist');
+const reactDist = path.join(__dirname, 'dist');
 if (!isDev) {
   if (fs.existsSync(reactDist)) {
     app.use('/app', express.static(reactDist));
     app.get('/app/*', (req, res) => res.sendFile(path.join(reactDist, 'index.html')));
+    app.get('*',      (req, res) => res.redirect('/app'));
   } else {
     app.get('/app*', (req, res) => {
       res.status(503).send(`<!doctype html><html>
@@ -33,161 +36,21 @@ if (!isDev) {
 // Dev mode: Vite middleware ditambahkan di start() dan akan handle semua /app/* requests
 
 // ── Docs ─────────────────────────────────────────────────────────────────────
+// Docs API — serve raw markdown, React renders it
 const DOCS_DIR = path.join(__dirname, 'docs');
 
-marked.use({
-  renderer: {
-    heading(token) {
-      // marked v12: token.text may be undefined when called via use() chain;
-      // fall back to raw (strip leading # markers).
-      const raw   = typeof token === 'string' ? token : (token.raw || '');
-      const text  = (typeof token === 'object' ? token.text : null)
-                    ?? raw.replace(/^#{1,6}\s*/, '').trim();
-      const depth = typeof token === 'object' ? (token.depth || 1) : 1;
-      const id    = text.replace(/<[^>]+>/g, '').toLowerCase().trim()
-                       .replace(/\s+/g, '-').replace(/[^\w-]/g, '');
-      return `<h${depth} id="${id}">${text}</h${depth}>\n`;
-    }
-  }
-});
-
-const SIDEBAR = [
-  { title: 'Pengenalan', items: [
-    { label: 'Getting Started', href: 'getting-started' },
-    { label: 'Cara Run',        href: 'cara-run'        },
-    { label: 'Struktur Folder', href: 'struktur-folder' },
-  ]},
-  { title: 'Framework Guide', items: [
-    { label: 'Tambah BP',        href: 'framework/tambah-bp'        },
-    { label: 'Tambah Project',   href: 'framework/tambah-project'   },
-    { label: 'Extract & Batch',  href: 'framework/extract-batch'    },
-    { label: 'Variable Sources', href: 'framework/variable-sources' },
-    { label: 'Auth',             href: 'framework/auth'             },
-    { label: 'Transaksi Gagal',  href: 'framework/transaction-fail' },
-  ]},
-  { title: 'Metrics & Tags', items: [
-    { label: 'Custom Metrics', href: 'metrics' },
-  ]},
-  { title: 'Observability', items: [
-    { label: 'k6 Dashboard', href: 'observability/k6-dashboard' },
-    { label: 'Grafana Stack', href: 'observability/grafana'     },
-  ]},
-];
-
-function buildToc(html) {
-  const toc = [], re = /<h([23]) id="([^"]+)">(.*?)<\/h[23]>/g;
-  let m;
-  while ((m = re.exec(html)) !== null)
-    toc.push({ level: +m[1], id: m[2], text: m[3].replace(/<[^>]+>/g, '') });
-  return toc;
-}
-
-function docsPage(content, currentHref, title) {
-  const toc = buildToc(content);
-  const tocHtml = toc.length
-    ? `<nav class="toc"><p class="toc-hd">On this page</p><ul>${
-        toc.map(h => `<li class="lvl${h.level}"><a href="#${h.id}">${h.text}</a></li>`).join('')
-      }</ul></nav>`
-    : '';
-  const sbHtml = SIDEBAR.map(sec => `
-    <div class="sb-sec">
-      <div class="sb-hd">${sec.title}</div>
-      <ul>${sec.items.map(it =>
-        `<li><a href="/docs/${it.href}"${currentHref === it.href ? ' class="act"' : ''}>${it.label}</a></li>`
-      ).join('')}</ul>
-    </div>`).join('');
-
-  return `<!doctype html><html><head>
-<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${title} — k6 Perf Framework</title>
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-:root{--bg:#07080d;--s1:#0f1119;--s2:#141720;--border:#1e2235;--border2:#262c40;
-  --text:#dde1f0;--muted:#4a5070;--green:#39d98a;--mono:Consolas,'Courier New',monospace}
-body{background:var(--bg);color:var(--text);font-family:var(--mono);font-size:14px;line-height:1.7;display:flex;min-height:100vh}
-a{color:var(--green);text-decoration:none}a:hover{text-decoration:underline}
-.sidebar{width:240px;min-height:100vh;background:var(--s1);border-right:1px solid var(--border);position:sticky;top:0;height:100vh;overflow-y:auto;flex-shrink:0}
-.sb-brand{padding:18px 16px 14px;border-bottom:1px solid var(--border)}
-.sb-brand strong{font-size:13px}.sb-brand small{display:block;color:var(--muted);font-size:11px;margin-top:2px}
-.sb-back{display:block;margin:10px 12px 4px;padding:5px 10px;font-size:11px;color:var(--muted);border:1px solid var(--border);border-radius:4px;text-align:center;transition:all .15s}
-.sb-back:hover{color:var(--green);border-color:var(--green);text-decoration:none}
-.sb-sec{padding:10px 0 2px}.sb-hd{padding:2px 16px 4px;font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700}
-.sb-sec ul{list-style:none}
-.sb-sec li a{display:block;padding:4px 16px 4px 22px;font-size:12px;color:var(--muted);border-left:2px solid transparent;transition:all .15s}
-.sb-sec li a:hover{color:var(--text);text-decoration:none;border-left-color:var(--border2)}
-.sb-sec li a.act{color:var(--green);border-left-color:var(--green);background:rgba(57,217,138,.06)}
-.wrap{flex:1;display:flex;min-width:0;padding:48px 40px 80px;gap:32px}
-.content{flex:1;min-width:0;max-width:760px}
-.content h1{font-size:26px;font-weight:700;margin-bottom:24px;letter-spacing:-.3px}
-.content h2{font-size:17px;font-weight:700;margin:36px 0 12px;padding-bottom:7px;border-bottom:1px solid var(--border)}
-.content h3{font-size:14px;font-weight:700;margin:22px 0 8px}
-.content p{margin-bottom:14px}.content ul,.content ol{margin:0 0 14px 22px}.content li{margin-bottom:3px}
-.content table{width:100%;border-collapse:collapse;margin:16px 0;font-size:12px}
-.content th{background:var(--s2);padding:7px 12px;text-align:left;border:1px solid var(--border);color:var(--muted);text-transform:uppercase;font-size:10px;letter-spacing:.4px}
-.content td{padding:6px 12px;border:1px solid var(--border);vertical-align:top}
-.content tr:hover td{background:var(--s1)}
-.content pre{background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:16px;overflow-x:auto;margin:14px 0}
-.content pre code{font-family:var(--mono);font-size:12px;color:#c8d0e8;background:none;padding:0}
-.content code{font-family:var(--mono);font-size:12px;background:var(--s2);padding:1px 5px;border-radius:3px;color:#e8eaf0}
-.content blockquote{border-left:3px solid var(--border2);padding:4px 16px;margin:14px 0;color:var(--muted)}
-.content hr{border:none;border-top:1px solid var(--border);margin:24px 0}
-.toc{width:200px;flex-shrink:0;align-self:flex-start;position:sticky;top:32px}
-.toc-hd{font-size:10px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;margin-bottom:10px}
-.toc ul{list-style:none}
-.toc li a{display:block;font-size:11px;color:var(--muted);padding:3px 6px;border-left:2px solid transparent;transition:color .15s,border-color .15s}
-.toc li a:hover{color:var(--text);text-decoration:none;border-left-color:var(--border2)}
-.toc li a.act{color:var(--green);border-left-color:var(--green);font-weight:600}
-.toc li.lvl3{padding-left:12px}
-@media(max-width:960px){.toc{display:none}}
-@media(max-width:640px){.sidebar{display:none}.wrap{padding:24px 16px}}
-</style></head>
-<body>
-<nav class="sidebar">
-  <div class="sb-brand"><strong>k6 Perf Framework</strong><small>Docs</small></div>
-  <a class="sb-back" href="/app">← Dashboard</a>
-  ${sbHtml}
-</nav>
-<div class="wrap">
-  <article class="content">${content}</article>
-  ${tocHtml}
-</div>
-<script>
-(function(){
-  var links = Array.from(document.querySelectorAll('.toc a[href^="#"]'));
-  if (!links.length) return;
-  var headings = links.map(function(a){
-    return { a: a, el: document.getElementById(a.getAttribute('href').slice(1)) };
-  }).filter(function(x){ return x.el; });
-  function update(){
-    var scrollY = window.scrollY + 110;
-    var active = headings[0];
-    for (var i = 0; i < headings.length; i++){
-      if (headings[i].el.offsetTop <= scrollY) active = headings[i];
-    }
-    links.forEach(function(a){ a.classList.remove('act'); });
-    if (active) active.a.classList.add('act');
-  }
-  window.addEventListener('scroll', update, { passive: true });
-  update();
-})();
-</script>
-</body></html>`;
-}
-
-function serveDoc(req, res, docPath) {
+function serveDocApi(req, res, docPath) {
   const safe = docPath.replace(/\\/g, '/').replace(/\.\./g, '').replace(/^\/+/, '');
   const file = path.join(DOCS_DIR, safe + '.md');
-  if (!file.startsWith(DOCS_DIR + path.sep)) return res.status(400).send('Bad request');
-  if (!fs.existsSync(file)) return res.status(404).send('Page not found');
-  const md    = fs.readFileSync(file, 'utf8').replace(/^---[\s\S]*?---\n?/, '');
-  const html  = marked.parse(md);
-  const title = (md.match(/^#\s+(.+)/m) || [])[1] || safe;
-  res.send(docsPage(html, safe, title));
+  if (!file.startsWith(DOCS_DIR + path.sep)) return res.status(400).json({ error: 'Bad request' });
+  if (!fs.existsSync(file)) return res.status(404).json({ error: 'Page not found' });
+  const content = fs.readFileSync(file, 'utf8').replace(/^---[\s\S]*?---\n?/, '');
+  res.json({ content });
 }
 
-app.get('/docs',       (req, res) => serveDoc(req, res, 'index'));
-app.get('/docs/:p',    (req, res) => serveDoc(req, res, req.params.p));
-app.get('/docs/:s/:p', (req, res) => serveDoc(req, res, `${req.params.s}/${req.params.p}`));
+app.get('/api/docs/:page',         (req, res) => serveDocApi(req, res, req.params.page));
+app.get('/api/docs/:section/:page',(req, res) => serveDocApi(req, res, `${req.params.section}/${req.params.page}`));
+app.get('/docs*', (req, res) => res.redirect('/app'));
 
 // ── Upload/Storage ────────────────────────────────────────────────────────────
 const storage = multer.diskStorage({
@@ -786,7 +649,7 @@ async function start() {
     console.log('\n  k6 Dashboard running\n');
     console.log(`   Local    →  http://localhost:${PORT}/app`);
     ips.forEach(ip => console.log(`   Network  →  http://${ip}:${PORT}/app`));
-    console.log(`   Docs     →  http://localhost:${PORT}/docs`);
+    console.log(`   Docs     →  http://localhost:${PORT}/app (Documentation tab)`);
     console.log(`   Mode     →  ${isDev ? 'development (Vite HMR)' : 'production'}\n`);
   });
 }

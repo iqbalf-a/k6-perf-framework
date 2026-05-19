@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "k6 perf framework — dashboard, docs, script & scenario generator",
   "main": "server.js",
+  "type": "module",
   "scripts": {
     "start": "node server.js",
     "dev": "node server.js --dev",
@@ -20,6 +21,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.5.0",
+    "nodemon": "^3.1.14",
     "vite": "^5.4.0"
   }
 }

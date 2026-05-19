@@ -11,7 +11,26 @@ import {
   PointElement,
   Tooltip,
 } from 'chart.js';
+import { marked } from 'marked';
 import './styles.css';
+
+// Render markdown and post-process headings to add id attributes
+function renderMarkdown(md) {
+  const html = marked.parse(md);
+  const div = document.createElement('div');
+  div.innerHTML = html;
+  div.querySelectorAll('h1,h2,h3,h4,h5,h6').forEach(h => {
+    if (!h.id) {
+      h.id = h.textContent.toLowerCase().trim()
+        .replace(/\s+/g, '-').replace(/[^\w-]/g, '');
+    }
+  });
+  div.querySelectorAll('a[href^="http"]').forEach(a => {
+    a.setAttribute('target', '_blank');
+    a.setAttribute('rel', 'noopener noreferrer');
+  });
+  return div.innerHTML;
+}
 
 Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointElement, Filler, Tooltip, Legend);
 
@@ -19,13 +38,62 @@ const COLORS = ['#22d3ee','#39d98a','#ffaa3b','#a78bfa','#f472b6','#fb923c','#34
 
 const navItems = [
   { id: 'dashboard', label: 'Results Dashboard' },
-  { id: 'script', label: 'Script Generator' },
-  { id: 'scenario', label: 'Scenario Generator' },
+  { id: 'script',    label: 'Script Generator'  },
+  { id: 'scenario',  label: 'Scenario Generator' },
+  { id: 'docs',      label: 'Documentation'      },
 ];
 
+const DOCS_NAV = [
+  { title: 'Pengenalan', items: [
+    { label: 'Getting Started', path: 'getting-started' },
+    { label: 'Cara Run',        path: 'cara-run'        },
+    { label: 'Struktur Folder', path: 'struktur-folder' },
+  ]},
+  { title: 'Framework Guide', items: [
+    { label: 'Tambah BP',        path: 'framework/tambah-bp'        },
+    { label: 'Tambah Project',   path: 'framework/tambah-project'   },
+    { label: 'Extract & Batch',  path: 'framework/extract-batch'    },
+    { label: 'Variable Sources', path: 'framework/variable-sources' },
+    { label: 'Auth',             path: 'framework/auth'             },
+    { label: 'Transaksi Gagal',  path: 'framework/transaction-fail' },
+  ]},
+  { title: 'Metrics & Tags', items: [
+    { label: 'Custom Metrics', path: 'metrics' },
+  ]},
+  { title: 'Observability', items: [
+    { label: 'k6 Dashboard', path: 'observability/k6-dashboard' },
+    { label: 'Grafana Stack', path: 'observability/grafana'     },
+  ]},
+];
+
+function getPageFromHash() {
+  const h = window.location.hash.slice(1);
+  if (h === 'script')   return 'script';
+  if (h === 'scenario') return 'scenario';
+  if (h.startsWith('docs')) return 'docs';
+  return 'dashboard';
+}
+
 function App() {
-  const [page, setPage] = React.useState('dashboard');
+  const [page, setPage] = React.useState(getPageFromHash);
   const [result, setResult] = React.useState(null);
+  const [theme, toggleTheme] = useDocsTheme();
+
+  React.useEffect(() => {
+    const onPop = () => setPage(getPageFromHash());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const navigate = (newPage) => {
+    const hash = newPage === 'dashboard' ? '' : newPage;
+    history.pushState(null, '', `#${hash}`);
+    setPage(newPage);
+  };
+
+  if (page === 'docs') {
+    return <DocsPage onBack={() => navigate('dashboard')} theme={theme} toggleTheme={toggleTheme} />;
+  }
 
   if (page === 'dashboard' && result) {
     return <FullScreenResults result={result} onBack={() => setResult(null)} onNewResult={setResult} />;
@@ -47,19 +115,19 @@ function App() {
             <button
               key={item.id}
               className={page === item.id ? 'active' : ''}
-              onClick={() => setPage(item.id)}
+              onClick={() => navigate(item.id)}
             >
               {item.label}
             </button>
           ))}
         </nav>
 
-        <a className="legacy-link" href="/docs" target="_blank" rel="noreferrer">
-          Documentation
-        </a>
-        <a className="legacy-link" href="/">
-          Open legacy dashboard
-        </a>
+        <div className="side-bottom">
+          <button className="legacy-link" onClick={toggleTheme}>
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
+        </div>
+
       </aside>
 
       <main className="main-panel">
@@ -78,6 +146,165 @@ function PageHeader({ title, eyebrow, description }) {
       <h1>{title}</h1>
       <p>{description}</p>
     </header>
+  );
+}
+
+function useDocsTheme() {
+  const [theme, setTheme] = React.useState(
+    () => localStorage.getItem('docs-theme') || 'dark'
+  );
+  React.useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('docs-theme', theme);
+    return () => document.documentElement.removeAttribute('data-theme');
+  }, [theme]);
+  const toggle = () => setTheme(t => t === 'dark' ? 'light' : 'dark');
+  return [theme, toggle];
+}
+
+function resolveDocLink(currentPath, href) {
+  if (!href) return null;
+  if (href.startsWith('http') || href.startsWith('//') || href.startsWith('#')) return null;
+  if (href.startsWith('../') || href.startsWith('/')) return null; // non-doc paths, let browser handle
+  const clean = href.replace(/^\.\//, '').replace(/\.md$/, '');
+  const baseDir = currentPath.includes('/') ? currentPath.split('/').slice(0, -1).join('/') : '';
+  return baseDir ? `${baseDir}/${clean}` : clean;
+}
+
+function getDocPathFromHash() {
+  const h = window.location.hash.slice(1);
+  if (h.startsWith('docs/')) return h.slice(5);
+  return 'getting-started';
+}
+
+function DocsPage({ onBack, theme, toggleTheme }) {
+  const [docPath, setDocPath] = React.useState(getDocPathFromHash);
+
+  React.useEffect(() => {
+    const onPop = () => setDocPath(getDocPathFromHash());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  const [html, setHtml]       = React.useState('');
+  const [toc, setToc]         = React.useState([]);
+  const [loading, setLoading] = React.useState(false);
+  const contentRef            = React.useRef(null);
+
+  React.useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    setLoading(true);
+    fetch(`/api/docs/${docPath}`)
+      .then(r => r.json())
+      .then(data => {
+        const rendered = renderMarkdown(data.content || '');
+        setHtml(rendered);
+        const tmp = document.createElement('div');
+        tmp.innerHTML = rendered;
+        const items = Array.from(tmp.querySelectorAll('h2, h3')).map(h => ({
+          level: parseInt(h.tagName[1]),
+          id: h.id,
+          text: h.textContent,
+        }));
+        setToc(items);
+      })
+      .catch(err => {
+        console.error('docs load error', err);
+        setHtml('<p style="color:var(--muted)">Failed to load page.</p>');
+      })
+      .finally(() => setLoading(false));
+  }, [docPath]);
+
+  // Scroll tracking for TOC active state
+  React.useEffect(() => {
+    if (!toc.length) return;
+    const links = Array.from(document.querySelectorAll('.docs-toc a'));
+    const items = toc.map((t, i) => ({ el: document.getElementById(t.id), a: links[i] }))
+                     .filter(x => x.el && x.a);
+    function update() {
+      const sy = window.scrollY + 130;
+      let active = items[0];
+      for (const h of items) {
+        if (h.el.getBoundingClientRect().top + window.scrollY <= sy) active = h;
+      }
+      links.forEach(a => a.classList.remove('act'));
+      if (active) active.a.classList.add('act');
+    }
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+    return () => window.removeEventListener('scroll', update);
+  }, [toc]);
+
+  return (
+    <div className="docs-shell">
+      <aside className="side-nav">
+        <div className="brand">
+          <span className="brand-dot" />
+          <div>
+            <strong>k6 Framework</strong>
+            <small>Documentation</small>
+          </div>
+        </div>
+        <nav>
+          {DOCS_NAV.map(section => (
+            <div key={section.title} className="docs-sec">
+              <div className="docs-nav-hd">{section.title}</div>
+              {section.items.map(item => (
+                <button
+                  key={item.path}
+                  className={docPath === item.path ? 'active' : ''}
+                  onClick={() => {
+                    history.pushState(null, '', `#docs/${item.path}`);
+                    setDocPath(item.path);
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+        <div className="side-bottom">
+          <button className="legacy-link" onClick={toggleTheme}>
+            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
+          </button>
+          <button className="legacy-link" onClick={onBack}>← Back to App</button>
+        </div>
+      </aside>
+      <div className="docs-body">
+        <article
+          ref={contentRef}
+          className="docs-content"
+          dangerouslySetInnerHTML={{ __html: loading ? '<p style="color:var(--muted)">Loading…</p>' : html }}
+          onClick={(e) => {
+            const a = e.target.closest('a');
+            if (!a) return;
+            const resolved = resolveDocLink(docPath, a.getAttribute('href'));
+            if (!resolved) return;
+            e.preventDefault();
+            history.pushState(null, '', `#docs/${resolved}`);
+            setDocPath(resolved);
+          }}
+        />
+        {toc.length > 0 && (
+          <nav className="docs-toc">
+            <h2 className="docs-toc-hd">On this page</h2>
+            <ul>
+              {toc.map(item => (
+                <li key={item.id} className={`lvl${item.level}`}>
+                  <a
+                    href={`#${item.id}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                  >{item.text}</a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        )}
+      </div>
+    </div>
   );
 }
 
