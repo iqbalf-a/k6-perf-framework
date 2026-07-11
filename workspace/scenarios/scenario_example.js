@@ -3,14 +3,14 @@
 // API publik: https://quickpizza.grafana.com
 //
 // Cara jalankan (dari root repo):
-//   k6 run -e MODE=testhit  src/scenario/scenario_example.js   ← 1 hit per VU
-//   k6 run -e MODE=loadtest src/scenario/scenario_example.js   ← ramp-up normal
-//   k6 run -e MODE=stress   src/scenario/scenario_example.js   ← stress config
+//   k6perf run -Scenario scenario_example -Mode testhit    ← 1 hit per VU
+//   k6perf run -Scenario scenario_example -Mode loadtest   ← ramp-up normal
+//   k6perf run -Scenario scenario_example -Mode stress     ← stress config
 // ─────────────────────────────────────────────────────────────────────────────
-import { MODE, createOptions, dispatchVu, setBpList } from '../../lib/core/config.js';
+import { MODE, createOptions, dispatchVu, setBpList } from '../../framework/index.js';
 
 // ── 1. Import fungsi BP ───────────────────────────────────────────────────────
-import { PizzaOrder } from '../script/_exampleChannel/PizzaOrder/PizzaOrder.js';
+import { PizzaOrder } from '../scripts/_exampleChannel/PizzaOrder/PizzaOrder.js';
 
 // ── 2. Daftar BP ──────────────────────────────────────────────────────────────
 // Alur: Login → Recommend Pizza → Get Detail → Submit Rating → List Ratings

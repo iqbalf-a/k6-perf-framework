@@ -1,28 +1,33 @@
-# ── Dependencies (hanya untuk IDE autocomplete) ───────────────────────────────
+# ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
-tools/k6-dashboard/web/dist/
-tools/k6-dashboard/public/docs/
+dashboard/dist/
+dashboard/public/docs/
 
-# ── k6 binary ─────────────────────────────────────────────────────────────────
-# Letakkan k6.exe satu level di atas repo (../k6.exe), jangan di dalam repo
+# ── k6 binary (portable) ──────────────────────────────────────────────────────
+# Binary disimpan di bin/ tapi tidak ikut di-commit (ukuran besar).
+bin/k6.exe
+bin/k6
 k6.exe
 k6
 
 # ── Script & scenario spesifik project ────────────────────────────────────────
-# Hanya template yang masuk repo. Script aktif per-project disimpan lokal.
-src/script/*/
-!src/script/_template/
-!src/script/_exampleChannel/
+# Hanya template & contoh yang masuk repo. Script aktif per-project disimpan lokal.
+workspace/scripts/*/
+!workspace/scripts/_template/
+!workspace/scripts/_exampleChannel/
 
-src/scenario/scenario_*.js
-!src/scenario/scenario_template.js
-!src/scenario/scenario_example.js
+workspace/scenarios/scenario_*.js
+!workspace/scenarios/scenario_template.js
+!workspace/scenarios/scenario_example.js
 
 # ── Hasil test ────────────────────────────────────────────────────────────────
 results/
 *.html
 report*.html
-!tools/k6-dashboard/**/*.html
+!dashboard/**/*.html
+
+# ── Screenshot / scratch lokal ────────────────────────────────────────────────
+screenshots/
 
 # ── OS & editor ───────────────────────────────────────────────────────────────
 .DS_Store

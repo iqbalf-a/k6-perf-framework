@@ -16,7 +16,7 @@ import { pushLoki } from '../observability/loki.js';
 //   fn        — flow bisnis: fn(data, session)
 //
 // Untuk stop iterasi dengan pesan custom, lempar IterationAbortError dari dalam fn:
-//   import { IterationAbortError } from '../../../../lib/http/transaction.js';
+//   import { IterationAbortError } from '../../../../framework/index.js';
 //   throw new IterationAbortError('alasan custom');
 //   → output: [NamaBP] iterasi dibatalkan — transaksi gagal: alasan custom
 export function runScript({ dataset, name, parameter, fn }) {

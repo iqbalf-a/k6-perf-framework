@@ -1,6 +1,6 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // TEMPLATE: Konfigurasi parameter project baru
-// Salin file ini ke folder project baru (src/script/NamaProject/parameter.config.js)
+// Salin file ini ke folder project baru (workspace/scripts/NamaProject/parameter.config.js)
 // lalu sesuaikan nilai sesuai kebutuhan.
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -3,8 +3,7 @@
 // Salin dan sesuaikan dengan mekanisme logout aplikasi target.
 // Contoh pemanggilan: Logout('BP001_99_Logout', data)
 // ─────────────────────────────────────────────────────────────────────────────
-import { transaction } from '../../../../lib/http/transaction.js';
-import { api }         from '../../../../lib/http/api.js';
+import { transaction, api } from '../../../../framework/index.js';
 import { parameter } from '../parameter.config.js';
 
 export function Logout(tx, data) {

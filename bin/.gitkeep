@@ -1,0 +1,2 @@
+# Letakkan k6.exe di folder ini. Binary tidak ikut di-commit (lihat .gitignore).
+# Download: https://github.com/grafana/k6/releases

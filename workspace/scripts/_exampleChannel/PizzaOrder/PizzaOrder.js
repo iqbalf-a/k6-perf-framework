@@ -15,12 +15,9 @@
 //   batch           — beberapa request paralel dalam satu transaksi
 // ─────────────────────────────────────────────────────────────────────────────
 import { sleep } from 'k6';
-import { runScript } from '../../../../lib/core/runScript.js';
-import { loadCSV } from '../../../../lib/data/csvLoader.js';
-import { transaction } from '../../../../lib/http/transaction.js';
-import { api } from '../../../../lib/http/api.js';
-import { batch } from '../../../../lib/http/batch.js';
-import { addAutoHeader } from '../../../../lib/http/headers.js';
+import {
+    runScript, loadCSV, transaction, api, batch, addAutoHeader,
+} from '../../../../framework/index.js';
 import { parameter } from '../parameter.config.js';
 
 const dataset = loadCSV(import.meta.resolve('./PizzaOrder_data.csv'));

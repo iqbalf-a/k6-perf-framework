@@ -4,8 +4,7 @@
 // Contoh pemanggilan: Login('BP001_01_Login', data)
 // → api name: '001_01_01_/auth/login'
 // ─────────────────────────────────────────────────────────────────────────────
-import { transaction } from '../../../../lib/http/transaction.js';
-import { api }         from '../../../../lib/http/api.js';
+import { transaction, api } from '../../../../framework/index.js';
 import { parameter } from '../parameter.config.js';
 
 export function Login(tx, data) {

@@ -2,18 +2,15 @@
 // TEMPLATE: Script BP baru — salin folder ini, rename BPxxx_NamaBP
 // ─────────────────────────────────────────────────────────────────────────────
 import { sleep } from 'k6';
-import { runScript } from '../../../../lib/core/runScript.js';
-import { loadCSV } from '../../../../lib/data/csvLoader.js';
-import { transaction } from '../../../../lib/http/transaction.js';
-import { api } from '../../../../lib/http/api.js';
+// Semua API framework tersedia dari satu barrel. Tambahkan yang dipakai:
+//   addAutoHeader, deleteAutoHeader, clearAutoHeaders, batch, basicAuth,
+//   IterationAbortError, year, today, daysAgo, getSession, pushLoki, ...
+import {
+    runScript, loadCSV, transaction, api,
+} from '../../../../framework/index.js';
 import { parameter } from '../parameter.config.js';
 // parameter.CHANNEL opsional — uncomment CHANNEL di parameter.config.js dan pass parameter ke runScript
 // jika tidak di-set, tag group Grafana default: '::default'
-// import { addAutoHeader } from '../../../../lib/http/headers.js';
-// import { batch }         from '../../../../lib/http/batch.js';
-// import { IterationAbortError } from '../../../../lib/http/transaction.js';
-// import { basicAuth }     from '../../../../lib/auth/basicAuth.js';
-// import { year, today, daysAgo } from '../../../../lib/utils/dateHelper.js';
 // import { Login, Logout } from '../TransactionGeneral/index.js';
 
 const dataset = loadCSV(import.meta.resolve('./BPxxx_data.csv'));
