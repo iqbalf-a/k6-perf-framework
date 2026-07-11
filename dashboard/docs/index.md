@@ -14,7 +14,7 @@ Framework k6 untuk load testing multi-BP (Business Process).
 ## Pengenalan
 
 - [Getting Started](getting-started) — setup, prerequisites, struktur project
-- [Cara Run](cara-run) — parameter `run.ps1` dan contoh penggunaan
+- [Cara Run](cara-run) — parameter `k6perf` dan contoh penggunaan
 - [Struktur Folder](struktur-folder) — layout direktori lengkap
 
 ## Framework Guide

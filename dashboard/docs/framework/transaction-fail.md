@@ -38,7 +38,7 @@ export function BPxxx_NamaBP() {
 Hentikan iterasi secara eksplisit dengan melempar `IterationAbortError` — berguna untuk validasi kondisi bisnis sebelum flow dimulai.
 
 ```js
-import { IterationAbortError } from '../../../../lib/http/transaction.js';
+import { IterationAbortError } from '../../../../framework/index.js';
 
 export function BPxxx_NamaBP() {
     runScript({ dataset, name: 'BPxxx', parameter, fn: (data, session) => {

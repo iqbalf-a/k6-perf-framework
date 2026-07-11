@@ -26,23 +26,23 @@ Menu → Dashboards → Import → Upload JSON file
 
 ### 4. Aktifkan Remote Write
 
-Uncomment baris berikut di `run.ps1`:
+Set env berikut sebelum menjalankan `k6perf`:
 
-```powershell
-$env:K6_PROMETHEUS_RW_SERVER_URL  = "http://<prometheus-host>:9090/api/v1/write"
-$env:K6_PROMETHEUS_RW_TREND_STATS = "p(90),p(95),p(99),min,max,avg"
+```bat
+set K6_PROMETHEUS_RW_SERVER_URL=http://<prometheus-host>:9090/api/v1/write
+set K6_PROMETHEUS_RW_TREND_STATS=p(90),p(95),p(99),min,max,avg
 ```
 
-Dan uncomment argumen di array `$k6Args`:
+Dan tambahkan output `--out experimental-prometheus-rw` pada variabel `EXTRA` di `k6perf.cmd` (bagian `:run_go`):
 
-```powershell
-"-o", "experimental-prometheus-rw",
+```bat
+set "EXTRA=%EXTRA% --out experimental-prometheus-rw"
 ```
 
 Lalu jalankan seperti biasa:
 
-```powershell
-.\run.ps1 -mode loadtest -scenario scenario_myproject
+```bat
+k6perf run -Mode loadtest -Scenario scenario_myproject
 ```
 
 ## Panel Grafana

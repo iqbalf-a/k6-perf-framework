@@ -74,7 +74,7 @@ extract: [
 `batch()` mengumpulkan semua `api()` di dalam callback, lalu mengirimnya serentak via `http.batch()` k6.
 
 ```js
-import { batch } from '../../../../lib/http/batch.js';
+import { batch } from '../../../../framework/index.js';
 
 tx = 'BPxxx_03_LoadAssets';
 transaction(tx, () => {

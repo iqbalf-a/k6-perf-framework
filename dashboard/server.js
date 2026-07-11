@@ -13,27 +13,10 @@ const PORT   = process.env.PORT || 3000;
 const isDev  = process.argv.includes('--dev');
 
 app.use(express.json());
-app.use(express.static(path.join(__dirname, 'public')));
 
-const reactDist = path.join(__dirname, 'dist');
-if (!isDev) {
-  if (fs.existsSync(reactDist)) {
-    app.use('/app', express.static(reactDist));
-    app.get('/app/*', (req, res) => res.sendFile(path.join(reactDist, 'index.html')));
-    app.get('*',      (req, res) => res.redirect('/app'));
-  } else {
-    app.get('/app*', (req, res) => {
-      res.status(503).send(`<!doctype html><html>
-        <head><title>k6 Dashboard</title></head>
-        <body style="font-family:Consolas,monospace;background:#07080d;color:#dde1f0;padding:40px">
-          <h2>React app belum dibuild</h2>
-          <p>Jalankan: <code style="background:#141720;padding:3px 8px;border-radius:4px">npm run build</code> dari folder <code>tools/k6-dashboard</code></p>
-          <p>Atau untuk dev mode: <code style="background:#141720;padding:3px 8px;border-radius:4px">npm run dev</code></p>
-        </body></html>`);
-    });
-  }
-}
-// Dev mode: Vite middleware ditambahkan di start() dan akan handle semua /app/* requests
+// Satu aplikasi React disajikan LANGSUNG di root "/" (tanpa redirect, tanpa /app).
+// Route API didaftarkan lebih dulu; static build + fallback SPA ditambahkan
+// setelah route API (lihat bawah). Mode dev memakai Vite middleware di start().
 
 // ── Docs ─────────────────────────────────────────────────────────────────────
 // Docs API — serve raw markdown, React renders it
@@ -50,7 +33,7 @@ function serveDocApi(req, res, docPath) {
 
 app.get('/api/docs/:page',         (req, res) => serveDocApi(req, res, req.params.page));
 app.get('/api/docs/:section/:page',(req, res) => serveDocApi(req, res, `${req.params.section}/${req.params.page}`));
-app.get('/docs*', (req, res) => res.redirect('/app'));
+// (Legacy /docs redirect dihapus — docs kini bagian dari React app di root.)
 
 // ── Upload/Storage ────────────────────────────────────────────────────────────
 const storage = multer.diskStorage({
@@ -628,6 +611,23 @@ app.post('/api/parse-path', async (req, res) => {
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
 
+// ── Serve the React app at root (production build) ──────────────────────────
+// Didaftarkan SETELAH route API agar tidak menelan /api/*.
+const reactDist = path.join(__dirname, 'dist');
+if (!isDev) {
+  if (fs.existsSync(reactDist)) {
+    app.use(express.static(reactDist));
+    app.get('*', (req, res) => res.sendFile(path.join(reactDist, 'index.html')));
+  } else {
+    app.get('*', (req, res) => res.status(503).send(
+      '<!doctype html><meta charset="utf-8">' +
+      '<body style="font-family:Segoe UI,sans-serif;background:#0b0c10;color:#d7d9e0;padding:40px">' +
+      '<h2>React app belum dibuild</h2>' +
+      '<p>Jalankan <code>npm run build</code> di folder <code>dashboard</code>, atau gunakan mode dev.</p></body>'
+    ));
+  }
+}
+
 async function start() {
   if (isDev) {
     const { createServer: createVite } = await import('vite');
@@ -647,9 +647,9 @@ async function start() {
       for (const addr of iface)
         if (addr.family === 'IPv4' && !addr.internal) ips.push(addr.address);
     console.log('\n  k6 Dashboard running\n');
-    console.log(`   Local    →  http://localhost:${PORT}/app`);
-    ips.forEach(ip => console.log(`   Network  →  http://${ip}:${PORT}/app`));
-    console.log(`   Docs     →  http://localhost:${PORT}/app (Documentation tab)`);
+    console.log(`   Local    →  http://localhost:${PORT}`);
+    ips.forEach(ip => console.log(`   Network  →  http://${ip}:${PORT}`));
+    console.log(`   Docs     →  http://localhost:${PORT}/#docs`);
     console.log(`   Mode     →  ${isDev ? 'development (Vite HMR)' : 'production'}\n`);
   });
 }

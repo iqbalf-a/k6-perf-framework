@@ -6,11 +6,11 @@ Parser menggunakan **DuckDB** (embedded). File 1.8 GB / 5 juta baris selesai dip
 
 ## Setup
 
-```powershell
-cd tools\k6-dashboard
-npm install
-node server.js
+```bat
+k6perf dashboard
 ```
+
+(Pertama kali akan otomatis `npm install`. Manual: `cd dashboard; npm install; node server.js`.)
 
 Server berjalan di `http://localhost:3000`. Bisa diakses dari jaringan lokal via IP mesin.
 
@@ -18,8 +18,8 @@ Server berjalan di `http://localhost:3000`. Bisa diakses dari jaringan lokal via
 
 **1. Generate file CSV:**
 
-```powershell
-.\run.ps1 -mode loadtest -scenario scenario_myproject -csv
+```bat
+k6perf run -Mode loadtest -Scenario scenario_myproject -Csv
 ```
 
 File tersimpan di `results/<testid>.csv`.

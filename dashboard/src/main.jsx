@@ -38,9 +38,7 @@ const COLORS = ['#22d3ee','#39d98a','#ffaa3b','#a78bfa','#f472b6','#fb923c','#34
 
 const navItems = [
   { id: 'dashboard', label: 'Results Dashboard' },
-  { id: 'script',    label: 'Script Generator'  },
-  { id: 'scenario',  label: 'Scenario Generator' },
-  { id: 'docs',      label: 'Documentation'      },
+  { id: 'tools',     label: 'Tools & Docs'      },
 ];
 
 const DOCS_NAV = [
@@ -68,45 +66,60 @@ const DOCS_NAV = [
 
 function getPageFromHash() {
   const h = window.location.hash.slice(1);
-  if (h === 'script')   return 'script';
-  if (h === 'scenario') return 'scenario';
-  if (h.startsWith('docs')) return 'docs';
+  if (h === 'script' || h === 'scenario' || h.startsWith('docs')) return 'tools';
   return 'dashboard';
+}
+
+// Sub-view inside "Tools & Docs": a generator or a documentation page.
+function getSubFromHash() {
+  const h = window.location.hash.slice(1);
+  if (h === 'scenario') return { kind: 'scenario' };
+  if (h.startsWith('docs/')) return { kind: 'doc', path: h.slice(5) };
+  if (h === 'docs') return { kind: 'doc', path: 'getting-started' };
+  return { kind: 'script' };
+}
+
+function subToHash(sub) {
+  if (sub.kind === 'doc') return `docs/${sub.path}`;
+  return sub.kind; // 'script' | 'scenario'
 }
 
 function App() {
   const [page, setPage] = React.useState(getPageFromHash);
+  const [sub, setSub]   = React.useState(getSubFromHash);
   const [result, setResult] = React.useState(null);
   const [theme, toggleTheme] = useDocsTheme();
 
   React.useEffect(() => {
-    const onPop = () => setPage(getPageFromHash());
+    const onPop = () => { setPage(getPageFromHash()); setSub(getSubFromHash()); };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  const navigate = (newPage) => {
-    const hash = newPage === 'dashboard' ? '' : newPage;
-    history.pushState(null, '', `#${hash}`);
-    setPage(newPage);
+  // Enter a Tools & Docs sub-view. suffix: 'script' | 'scenario' | 'docs/<path>'
+  const go = (suffix) => {
+    history.pushState(null, '', `#${suffix}`);
+    setPage('tools');
+    setSub(getSubFromHash());
   };
 
-  if (page === 'docs') {
-    return <DocsPage onBack={() => navigate('dashboard')} theme={theme} toggleTheme={toggleTheme} />;
-  }
+  // Top-level sidebar (Results Dashboard / Tools & Docs) — identical on every page.
+  const navigate = (id) => {
+    if (id === 'tools') { go(subToHash(sub)); return; }
+    history.pushState(null, '', '#');
+    setPage('dashboard');
+  };
 
-  if (page === 'dashboard' && result) {
-    return <FullScreenResults result={result} onBack={() => setResult(null)} onNewResult={setResult} />;
-  }
-
+  // One shell, one sidebar. The content column swaps; Tools & Docs keeps its
+  // own inner sub-nav so the main sidebar never changes.
   return (
-    <div className="app-shell">
+    <div className="app-shell docs-shell">
       <aside className="side-nav">
         <div className="brand">
           <span className="brand-dot" />
           <div>
             <strong>k6 Framework</strong>
-            <small>React workspace</small>
+            <small>Performance testing</small>
           </div>
         </div>
 
@@ -127,14 +140,21 @@ function App() {
             {theme === 'dark' ? 'Light mode' : 'Dark mode'}
           </button>
         </div>
-
       </aside>
 
-      <main className="main-panel">
-        {page === 'dashboard' && <DashboardPage onData={setResult} />}
-        {page === 'script' && <ScriptGeneratorPage />}
-        {page === 'scenario' && <ScenarioGeneratorPage />}
-      </main>
+      {page === 'tools' ? (
+        <ToolsPage sub={sub} go={go} />
+      ) : result ? (
+        <FullScreenResults
+          result={result}
+          onBack={() => setResult(null)}
+          onNewResult={setResult}
+        />
+      ) : (
+        <main className="main-panel">
+          <DashboardPage onData={setResult} />
+        </main>
+      )}
     </div>
   );
 }
@@ -171,20 +191,42 @@ function resolveDocLink(currentPath, href) {
   return baseDir ? `${baseDir}/${clean}` : clean;
 }
 
-function getDocPathFromHash() {
-  const h = window.location.hash.slice(1);
-  if (h.startsWith('docs/')) return h.slice(5);
-  return 'getting-started';
+function ToolsPage({ sub, go }) {
+  const isDoc = sub.kind === 'doc';
+  return (
+    <div className="tools-shell">
+      <aside className="tools-nav">
+        <div className="docs-sec">
+          <div className="docs-nav-hd">Generator</div>
+          <button className={sub.kind === 'script' ? 'active' : ''} onClick={() => go('script')}>Script Generator</button>
+          <button className={sub.kind === 'scenario' ? 'active' : ''} onClick={() => go('scenario')}>Scenario Generator</button>
+        </div>
+        {DOCS_NAV.map((section) => (
+          <div key={section.title} className="docs-sec">
+            <div className="docs-nav-hd">{section.title}</div>
+            {section.items.map((item) => (
+              <button
+                key={item.path}
+                className={isDoc && sub.path === item.path ? 'active' : ''}
+                onClick={() => go(`docs/${item.path}`)}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
+        ))}
+      </aside>
+
+      <div className="tools-main">
+        {sub.kind === 'script'   && <main className="main-panel"><ScriptGeneratorPage /></main>}
+        {sub.kind === 'scenario' && <main className="main-panel"><ScenarioGeneratorPage /></main>}
+        {isDoc && <DocContent docPath={sub.path} go={go} />}
+      </div>
+    </div>
+  );
 }
 
-function DocsPage({ onBack, theme, toggleTheme }) {
-  const [docPath, setDocPath] = React.useState(getDocPathFromHash);
-
-  React.useEffect(() => {
-    const onPop = () => setDocPath(getDocPathFromHash());
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
+function DocContent({ docPath, go }) {
   const [html, setHtml]       = React.useState('');
   const [toc, setToc]         = React.useState([]);
   const [loading, setLoading] = React.useState(false);
@@ -235,54 +277,19 @@ function DocsPage({ onBack, theme, toggleTheme }) {
   }, [toc]);
 
   return (
-    <div className="docs-shell">
-      <aside className="side-nav">
-        <div className="brand">
-          <span className="brand-dot" />
-          <div>
-            <strong>k6 Framework</strong>
-            <small>Documentation</small>
-          </div>
-        </div>
-        <nav>
-          {DOCS_NAV.map(section => (
-            <div key={section.title} className="docs-sec">
-              <div className="docs-nav-hd">{section.title}</div>
-              {section.items.map(item => (
-                <button
-                  key={item.path}
-                  className={docPath === item.path ? 'active' : ''}
-                  onClick={() => {
-                    history.pushState(null, '', `#docs/${item.path}`);
-                    setDocPath(item.path);
-                  }}
-                >
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ))}
-        </nav>
-        <div className="side-bottom">
-          <button className="legacy-link" onClick={toggleTheme}>
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          </button>
-          <button className="legacy-link" onClick={onBack}>← Back to App</button>
-        </div>
-      </aside>
-      <div className="docs-body">
+    <div className="docs-body">
         <article
           ref={contentRef}
+          key={docPath}
           className="docs-content"
-          dangerouslySetInnerHTML={{ __html: loading ? '<p style="color:var(--muted)">Loading…</p>' : html }}
+          dangerouslySetInnerHTML={{ __html: loading ? '<p style="color:var(--d-muted)">Loading…</p>' : html }}
           onClick={(e) => {
             const a = e.target.closest('a');
             if (!a) return;
             const resolved = resolveDocLink(docPath, a.getAttribute('href'));
             if (!resolved) return;
             e.preventDefault();
-            history.pushState(null, '', `#docs/${resolved}`);
-            setDocPath(resolved);
+            go(`docs/${resolved}`);
           }}
         />
         {toc.length > 0 && (
@@ -303,7 +310,6 @@ function DocsPage({ onBack, theme, toggleTheme }) {
             </ul>
           </nav>
         )}
-      </div>
     </div>
   );
 }
@@ -347,9 +353,9 @@ function DashboardPage({ onData }) {
   return (
     <>
       <PageHeader
-        eyebrow="React Dashboard"
+        eyebrow="Analisa Hasil"
         title="Results Dashboard"
-        description="Load hasil CSV k6 untuk melihat hasil test secara visual."
+        description="Muat file CSV hasil k6 untuk melihat metrik test secara visual — TPS/RPS, latency, checks, dan detail per transaksi & API."
       />
 
       <section className="panel load-panel">
@@ -376,24 +382,13 @@ function DashboardPage({ onData }) {
       </section>
 
       {!loading && (
-        <section className="work-grid">
-          <div className="panel">
-            <h2>Migration Status</h2>
-            <ul className="status-list">
-              <li><span className="done" /> Express API reuse</li>
-              <li><span className="done" /> React shell ready</li>
-              <li><span className="done" /> CSV load flow</li>
-              <li><span className="done" /> Basic charts</li>
-              <li><span className="done" /> Full legacy parity</li>
-            </ul>
-          </div>
-          <div className="panel">
-            <h2>Legacy Dashboard</h2>
-            <p>
-              Versi lama tetap aktif di root path. React ini menjadi tempat migrasi
-              dan nantinya generator script/scenario.
-            </p>
-          </div>
+        <section className="panel">
+          <h2>Cara mendapatkan CSV</h2>
+          <ol className="help-steps">
+            <li>Jalankan test dengan flag CSV: <code>k6perf run -Scenario &lt;nama&gt; -Mode loadtest -Csv</code></li>
+            <li>File otomatis tersimpan di folder <code>results/</code> sebagai <code>&lt;testid&gt;.csv</code>.</li>
+            <li>Drag file ke area di atas, atau tempel path lengkapnya lalu klik <strong>Load</strong>.</li>
+          </ol>
         </section>
       )}
     </>
@@ -1696,10 +1691,9 @@ ${renderedApis}
             });`;
   }).join('\n\n') : '            // klik Add Step untuk menambahkan transaksi';
 
-  return `import { runScript } from '../../../../lib/core/runScript.js';
-import { loadCSV } from '../../../../lib/data/csvLoader.js';
-import { transaction } from '../../../../lib/http/transaction.js';
-import { api } from '../../../../lib/http/api.js';
+  return `import {
+    runScript, loadCSV, transaction, api,
+} from '../../../../framework/index.js';
 import { parameter } from '../parameter.config.js';
 
 const dataset = loadCSV(import.meta.resolve('./${safeBp}_data.csv'));
@@ -1717,7 +1711,7 @@ ${renderedSteps}
     });
 }
 
-// Target folder: src/script/${channel || '_channel'}/${safeBp}/`;
+// Target folder: workspace/scripts/${channel || '_channel'}/${safeBp}/`;
 }
 
 function createApiDraft(stepIndex, apiIndex) {
@@ -1758,15 +1752,15 @@ function renderApiPreview(apiItem, baseUrl) {
 
 function buildScenarioPreview({ scenarioName, rampStep, holdDuration, bps }) {
   const imports = bps.length ? bps.map((bp) =>
-    `import { ${bp.fn || 'BPxxx_NamaBP'} } from '../script/NamaProject/${bp.fn || 'BPxxx_NamaBP'}/${bp.fn || 'BPxxx_NamaBP'}.js';`
-  ).join('\n') : '// import { BP001_NamaBP } from \'../script/NamaProject/BP001_NamaBP/BP001_NamaBP.js\';';
+    `import { ${bp.fn || 'BPxxx_NamaBP'} } from '../scripts/NamaProject/${bp.fn || 'BPxxx_NamaBP'}/${bp.fn || 'BPxxx_NamaBP'}.js';`
+  ).join('\n') : '// import { BP001_NamaBP } from \'../scripts/NamaProject/BP001_NamaBP/BP001_NamaBP.js\';';
 
   const list = bps.length ? bps.map((bp) =>
     `    { name: '${bp.name || 'BPxxx'}', users: ${Number(bp.users) || 1}, fn: ${bp.fn || 'BPxxx_NamaBP'}, thinkTime: ${Number(bp.thinkTime) || 0} },`
   ).join('\n') : '    // { name: \'BP001\', users: 1, fn: BP001_NamaBP, thinkTime: 1 },';
 
-  return `// File: src/scenario/${scenarioName || 'scenario_myproject'}.js
-import { MODE, createOptions, dispatchVu, setBpList } from '../../lib/core/config.js';
+  return `// File: workspace/scenarios/${scenarioName || 'scenario_myproject'}.js
+import { MODE, createOptions, dispatchVu, setBpList } from '../../framework/index.js';
 
 ${imports}
 

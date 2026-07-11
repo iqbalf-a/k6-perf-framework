@@ -5,8 +5,8 @@
 Salin template ke folder project:
 
 ```
-src/script/NamaProject/BPxxx_NamaBP/
-├── BPxxx_NamaBP.js    ← salin dari src/script/_template/BPxxx_NamaBP/
+workspace/scripts/NamaProject/BPxxx_NamaBP/
+├── BPxxx_NamaBP.js    ← salin dari workspace/scripts/_template/BPxxx_NamaBP/
 └── BPxxx_data.csv
 ```
 
@@ -14,11 +14,10 @@ src/script/NamaProject/BPxxx_NamaBP/
 
 ```js
 import { sleep } from 'k6';
-import { runScript }  from '../../../../lib/core/runScript.js';
-import { loadCSV }    from '../../../../lib/data/csvLoader.js';
-import { transaction } from '../../../../lib/http/transaction.js';
-import { api }        from '../../../../lib/http/api.js';
-import { parameter }  from '../parameter.config.js';
+import {
+    runScript, loadCSV, transaction, api,
+} from '../../../../framework/index.js';
+import { parameter } from '../parameter.config.js';
 
 const dataset = loadCSV(import.meta.resolve('./BPxxx_data.csv'));
 
@@ -44,8 +43,8 @@ export function BPxxx_NamaBP() {
 ## 3. Daftarkan di Scenario
 
 ```js
-// src/scenario/scenario_myproject.js
-import { BPxxx_NamaBP } from '../script/NamaProject/BPxxx_NamaBP/BPxxx_NamaBP.js';
+// workspace/scenarios/scenario_myproject.js
+import { BPxxx_NamaBP } from '../scripts/NamaProject/BPxxx_NamaBP/BPxxx_NamaBP.js';
 
 const bpList = [
     { name: 'BPxxx', users: 5, fn: BPxxx_NamaBP, thinkTime: 1 },
