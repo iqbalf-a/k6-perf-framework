@@ -66,22 +66,26 @@ const DOCS_NAV = [
 
 function getPageFromHash() {
   const h = window.location.hash.slice(1);
-  if (h === 'script' || h === 'scenario' || h.startsWith('docs')) return 'tools';
+  if (['run', 'scripts', 'results', 'script', 'scenario'].includes(h) || h.startsWith('docs')) return 'tools';
   return 'dashboard';
 }
 
 // Sub-view inside "Tools & Docs": a generator or a documentation page.
 function getSubFromHash() {
   const h = window.location.hash.slice(1);
+  if (h === 'run')      return { kind: 'run' };
+  if (h === 'scripts')  return { kind: 'scripts' };
+  if (h === 'results')  return { kind: 'results' };
+  if (h === 'script')   return { kind: 'script' };
   if (h === 'scenario') return { kind: 'scenario' };
   if (h.startsWith('docs/')) return { kind: 'doc', path: h.slice(5) };
   if (h === 'docs') return { kind: 'doc', path: 'getting-started' };
-  return { kind: 'script' };
+  return { kind: 'run' }; // default Tools & Docs = Run Test
 }
 
 function subToHash(sub) {
   if (sub.kind === 'doc') return `docs/${sub.path}`;
-  return sub.kind; // 'script' | 'scenario'
+  return sub.kind; // 'run' | 'scripts' | 'results' | 'script' | 'scenario'
 }
 
 function App() {
@@ -101,6 +105,13 @@ function App() {
     history.pushState(null, '', `#${suffix}`);
     setPage('tools');
     setSub(getSubFromHash());
+  };
+
+  // Buka hasil (JSON terparsir) di Results Dashboard.
+  const openResult = (resultJson) => {
+    setResult(resultJson);
+    history.pushState(null, '', '#');
+    setPage('dashboard');
   };
 
   // Top-level sidebar (Results Dashboard / Tools & Docs) — identical on every page.
@@ -143,7 +154,7 @@ function App() {
       </aside>
 
       {page === 'tools' ? (
-        <ToolsPage sub={sub} go={go} />
+        <ToolsPage sub={sub} go={go} onResult={openResult} />
       ) : result ? (
         <FullScreenResults
           result={result}
@@ -191,11 +202,17 @@ function resolveDocLink(currentPath, href) {
   return baseDir ? `${baseDir}/${clean}` : clean;
 }
 
-function ToolsPage({ sub, go }) {
+function ToolsPage({ sub, go, onResult }) {
   const isDoc = sub.kind === 'doc';
   return (
     <div className="tools-shell">
       <aside className="tools-nav">
+        <div className="docs-sec">
+          <div className="docs-nav-hd">Run</div>
+          <button className={sub.kind === 'run' ? 'active' : ''} onClick={() => go('run')}>Run Test</button>
+          <button className={sub.kind === 'scripts' ? 'active' : ''} onClick={() => go('scripts')}>Scripts</button>
+          <button className={sub.kind === 'results' ? 'active' : ''} onClick={() => go('results')}>Riwayat</button>
+        </div>
         <div className="docs-sec">
           <div className="docs-nav-hd">Generator</div>
           <button className={sub.kind === 'script' ? 'active' : ''} onClick={() => go('script')}>Script Generator</button>
@@ -218,11 +235,218 @@ function ToolsPage({ sub, go }) {
       </aside>
 
       <div className="tools-main">
+        {sub.kind === 'run'      && <main className="main-panel"><RunnerPage go={go} /></main>}
+        {sub.kind === 'scripts'  && <main className="main-panel"><ScriptsPage /></main>}
+        {sub.kind === 'results'  && <main className="main-panel"><HistoryPage onResult={onResult} /></main>}
         {sub.kind === 'script'   && <main className="main-panel"><ScriptGeneratorPage /></main>}
         {sub.kind === 'scenario' && <main className="main-panel"><ScenarioGeneratorPage /></main>}
         {isDoc && <DocContent docPath={sub.path} go={go} />}
       </div>
     </div>
+  );
+}
+
+// ─── Run Test — jalankan scenario, log real-time via SSE ────────────────────
+function RunnerPage({ go }) {
+  const [scenarios, setScenarios] = React.useState([]);
+  const [form, setForm] = React.useState({
+    scenario: '', mode: 'testhit', vus: 1, iterations: 1,
+    csv: true, debug: false, webdash: false, tags: '',
+  });
+  const [logLines, setLogLines] = React.useState([]);
+  const [status, setStatus] = React.useState('idle'); // idle|running|done|error
+  const [lastCsv, setLastCsv] = React.useState(null);
+  const esRef = React.useRef(null);
+  const startedRef = React.useRef(false);
+  const logRef = React.useRef(null);
+
+  React.useEffect(() => {
+    fetch('/api/scenarios').then((r) => r.json()).then((d) => {
+      const list = d.scenarios || [];
+      setScenarios(list);
+      setForm((f) => (f.scenario ? f : { ...f, scenario: list[0] || '' }));
+    }).catch(() => {});
+    return () => esRef.current?.close();
+  }, []);
+
+  React.useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [logLines]);
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  const append = (text) => setLogLines((prev) => [...prev, text]);
+
+  const run = () => {
+    if (!form.scenario || status === 'running') return;
+    setLogLines([]); setStatus('running'); setLastCsv(null); startedRef.current = false;
+    const params = new URLSearchParams({
+      scenario: form.scenario, mode: form.mode, vus: form.vus, iterations: form.iterations,
+      csv: form.csv, debug: form.debug, webdash: form.webdash, tags: form.tags,
+    });
+    const es = new EventSource(`/api/run?${params.toString()}`);
+    esRef.current = es;
+    es.addEventListener('start', (e) => { startedRef.current = true; append(`$ ${JSON.parse(e.data).cmd}\n\n`); });
+    es.addEventListener('log', (e) => append(JSON.parse(e.data).text));
+    es.addEventListener('done', (e) => {
+      const d = JSON.parse(e.data);
+      append(`\n[selesai] exit code ${d.code}\n`);
+      setStatus(d.code === 0 ? 'done' : 'error');
+      setLastCsv(d.csv || null);
+      es.close(); esRef.current = null;
+    });
+    es.addEventListener('error', (e) => {
+      let msg = ''; try { msg = JSON.parse(e.data).message; } catch {}
+      if (msg) append(`\n[error] ${msg}\n`);
+      setStatus('error'); es.close(); esRef.current = null;
+    });
+    es.onerror = () => {
+      if (!startedRef.current) append('\n[error] gagal memulai run (scenario/k6 tidak valid, atau sudah ada run lain).\n');
+      setStatus((s) => (s === 'running' ? 'error' : s));
+      es.close(); esRef.current = null;
+    };
+  };
+
+  const stop = () => {
+    fetch('/api/run/stop', { method: 'POST' }).catch(() => {});
+    esRef.current?.close(); esRef.current = null;
+    append('\n[dihentikan]\n'); setStatus('idle');
+  };
+
+  const statusLabel = { idle: 'Siap', running: 'Berjalan…', done: 'Selesai', error: 'Error' }[status];
+
+  return (
+    <>
+      <PageHeader eyebrow="Runner" title="Run Test"
+        description="Pilih scenario, atur mode & VU, jalankan k6, dan lihat log real-time." />
+
+      <section className="panel run-config">
+        <div className="run-fields">
+          <label>Scenario
+            <select value={form.scenario} onChange={(e) => set('scenario', e.target.value)}>
+              {scenarios.length === 0 && <option value="">(tidak ada scenario)</option>}
+              {scenarios.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </label>
+          <label>Mode
+            <select value={form.mode} onChange={(e) => set('mode', e.target.value)}>
+              <option value="testhit">testhit</option>
+              <option value="loadtest">loadtest</option>
+              <option value="stress">stress</option>
+              <option value="spike">spike</option>
+            </select>
+          </label>
+          <label>VUs / Total VU
+            <input type="number" min="1" value={form.vus} onChange={(e) => set('vus', e.target.value)} />
+          </label>
+          <label>Iterations
+            <input type="number" min="1" value={form.iterations} onChange={(e) => set('iterations', e.target.value)} />
+          </label>
+          <label>Tags (k=v,k=v)
+            <input value={form.tags} placeholder="env=staging,build=123" onChange={(e) => set('tags', e.target.value)} />
+          </label>
+        </div>
+
+        <div className="run-toggles">
+          <label className="chk"><input type="checkbox" checked={form.csv} onChange={(e) => set('csv', e.target.checked)} /> Export CSV</label>
+          <label className="chk"><input type="checkbox" checked={form.debug} onChange={(e) => set('debug', e.target.checked)} /> Debug (http-debug)</label>
+          <label className="chk"><input type="checkbox" checked={form.webdash} onChange={(e) => set('webdash', e.target.checked)} /> k6 web dashboard</label>
+        </div>
+
+        <div className="run-actions">
+          {status !== 'running'
+            ? <button type="button" className="btn-run" onClick={run} disabled={!form.scenario}>▶ Run</button>
+            : <button type="button" className="btn-stop" onClick={stop}>■ Stop</button>}
+          <span className={`run-status ${status}`}>{statusLabel}</span>
+          {lastCsv && status !== 'running' && (
+            <button type="button" className="csv-link" onClick={() => go('results')}>CSV: {lastCsv} · buka Riwayat →</button>
+          )}
+        </div>
+      </section>
+
+      <section className="panel run-log-panel">
+        <pre className="run-log" ref={logRef}>{logLines.join('') || 'Log k6 tampil di sini saat test berjalan…'}</pre>
+      </section>
+    </>
+  );
+}
+
+// ─── Scripts — daftar channel & BP (read-only) ──────────────────────────────
+function ScriptsPage() {
+  const [channels, setChannels] = React.useState(null);
+  React.useEffect(() => {
+    fetch('/api/scripts').then((r) => r.json()).then((d) => setChannels(d.channels || [])).catch(() => setChannels([]));
+  }, []);
+  return (
+    <>
+      <PageHeader eyebrow="Workspace" title="Scripts"
+        description="Daftar channel & Business Process di workspace/scripts." />
+      {channels === null && <section className="panel"><p>Memuat…</p></section>}
+      {channels && channels.length === 0 && <section className="panel"><p>Belum ada channel di workspace/scripts.</p></section>}
+      {channels && channels.map((ch) => (
+        <section className="panel script-card" key={ch.channel}>
+          <h2>{ch.channel}</h2>
+          {ch.bps.length === 0
+            ? <p>— belum ada BP —</p>
+            : <ul className="chip-list">{ch.bps.map((bp) => <li key={bp}><code>{bp}</code></li>)}</ul>}
+        </section>
+      ))}
+    </>
+  );
+}
+
+// ─── Riwayat Run — daftar CSV di results/, klik untuk buka di dashboard ──────
+function HistoryPage({ onResult }) {
+  const [results, setResults] = React.useState(null);
+  const [busy, setBusy] = React.useState('');
+  const [error, setError] = React.useState('');
+
+  React.useEffect(() => {
+    fetch('/api/results').then((r) => r.json()).then((d) => setResults(d.results || [])).catch(() => setResults([]));
+  }, []);
+
+  const open = async (item) => {
+    setBusy(item.name); setError('');
+    try {
+      const r = await fetch('/api/parse-path', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filePath: item.path }),
+      });
+      const j = await r.json();
+      if (j.success) onResult(j);
+      else setError(j.error || 'Gagal memuat CSV');
+    } catch (e) { setError(e.message); }
+    finally { setBusy(''); }
+  };
+
+  return (
+    <>
+      <PageHeader eyebrow="Runner" title="Riwayat Run"
+        description="Hasil CSV di folder results/. Klik 'Buka' untuk analisa di Results Dashboard." />
+      {error && <div className="error-text">{error}</div>}
+      <section className="panel table-panel">
+        <div className="tw">
+          <table>
+            <thead><tr><th>File</th><th>Ukuran</th><th>Waktu</th><th></th></tr></thead>
+            <tbody>
+              {results === null && <tr><td colSpan="4">Memuat…</td></tr>}
+              {results && results.length === 0 && <tr><td colSpan="4">Belum ada hasil di results/.</td></tr>}
+              {results && results.map((it) => (
+                <tr key={it.name}>
+                  <td>{it.name}</td>
+                  <td>{it.sizeMB} MB</td>
+                  <td><small>{new Date(it.mtime).toLocaleString()}</small></td>
+                  <td>
+                    <button type="button" className="btn-export" onClick={() => open(it)} disabled={busy === it.name}>
+                      {busy === it.name ? 'Membuka…' : 'Buka'}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </>
   );
 }
 

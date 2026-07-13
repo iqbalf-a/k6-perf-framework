@@ -99,17 +99,19 @@ Riwayat→`go('results')`) di atas Generator. Render sub sesuai `sub.kind` di `.
 - `.run-fields` (grid form), tabel riwayat pakai `.panel table` yang ada.
 
 ## 8. Task List (urut)
-1. [ ] `server.js`: `import spawn` + konstanta path.
-2. [ ] `server.js`: `GET /api/scenarios`, `/api/scripts`, `/api/results` (sisip sebelum SPA catch-all).
-3. [ ] `server.js`: `GET /api/run` (SSE) + `POST /api/run/stop`.
-4. [ ] Uji backend: list endpoints (fetch), jalankan 1 scenario via SSE (log, exit code, CSV muncul).
-5. [ ] `main.jsx`: perluas routing (`getPageFromHash`/`getSubFromHash`/`subToHash`).
-6. [ ] `main.jsx`: `RunnerPage` + `ScriptsPage` + `HistoryPage`.
-7. [ ] `main.jsx`: `ToolsPage` grup RUN + render; `App.runResult` + `onResult`.
-8. [ ] `styles.css`: `.run-log`, checkbox fix, `.chk`, tombol/status.
-9. [ ] Perbarui `scenario_template.js` ke pola `parseInt(__ENV.VUS) || loadConfig.totalVus` + docs.
-10. [ ] `npx vite build` (validasi compile) → hapus `dist`.
-11. [ ] Restart `k6perf dashboard` → uji end-to-end (list, run testhit, stop, CSV, riwayat→analisa).
+> Backend dipisah ke modul **`dashboard/routes/runner.js`** (Router Express) demi
+> clean arsitektur; `server.js` cukup `app.use(createRunnerRouter(ROOT))`.
+1. [x] Modul `routes/runner.js` + mount di `server.js` (sebelum SPA catch-all).
+2. [x] Endpoint `GET /api/scenarios`, `/api/scripts`, `/api/results`.
+3. [x] Endpoint `GET /api/run` (SSE) + `POST /api/run/stop`.
+4. [x] Uji backend: list OK · guard traversal OK (404) · run SSE end-to-end OK (log+done+CSV terbuat).
+5. [x] `main.jsx`: routing (`getPageFromHash`/`getSubFromHash`/`subToHash`) + sub `run/scripts/results`.
+6. [x] `main.jsx`: `RunnerPage` (SSE log) + `ScriptsPage` + `HistoryPage`.
+7. [x] `main.jsx`: `ToolsPage` grup RUN + render; `App.openResult` + `onResult`.
+8. [x] `styles.css`: `.run-log`, checkbox fix, `.chk`, tombol/status, chip scripts.
+9. [x] `scenario_template.js` pakai `parseInt(__ENV.VUS) || loadConfig.totalVus` (UI bisa override).
+10. [x] `npx vite build` → compile bersih (34 modul).
+11. [ ] **(User)** Restart `k6perf dashboard` → uji end-to-end di browser (list, run testhit, stop, CSV, riwayat→analisa).
 
 ## 9. Kriteria selesai (v1)
 - List scenario dari `workspace/scenarios/` tampil; Run `scenario_example` (testhit) → log k6 real-time;

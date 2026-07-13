@@ -41,8 +41,9 @@ const loadConfig = {
     holdDuration: 10,   // menit — hold di puncak setelah semua VU aktif
 };
 
-// Aktifkan HANYA untuk mode PERSENTASE — total VU dari loadConfig.totalVus (bukan flag -Vus).
-// distributeVus(bpList, loadConfig.totalVus);
+// Aktifkan HANYA untuk mode PERSENTASE. Total VU dari loadConfig.totalVus, tapi
+// bisa dioverride via -e VUS (mis. dari UI Runner). CMD tanpa flag → pakai totalVus.
+// distributeVus(bpList, parseInt(__ENV.VUS) || loadConfig.totalVus);
 
 setBpList(bpList);
 export const options = createOptions(bpList, MODE, loadConfig);

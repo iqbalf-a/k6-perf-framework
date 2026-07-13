@@ -5,8 +5,10 @@ import path     from 'path';
 import os       from 'os';
 import duckdb   from 'duckdb';
 import { fileURLToPath } from 'url';
+import { createRunnerRouter } from './routes/runner.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const ROOT = path.resolve(__dirname, '..'); // root repo = satu level di atas dashboard/
 
 const app    = express();
 const PORT   = process.env.PORT || 3000;
@@ -610,6 +612,9 @@ app.post('/api/parse-path', async (req, res) => {
     res.json({ success: true, ...result });
   } catch (err) { console.error(err); res.status(500).json({ error: err.message }); }
 });
+
+// ── Runner API (list scenario/script/hasil, run via SSE, stop) ──────────────
+app.use(createRunnerRouter(ROOT));
 
 // ── Serve the React app at root (production build) ──────────────────────────
 // Didaftarkan SETELAH route API agar tidak menelan /api/*.
