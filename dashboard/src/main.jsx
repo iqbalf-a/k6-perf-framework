@@ -12,9 +12,36 @@ import {
   Tooltip,
 } from 'chart.js';
 import { marked } from 'marked';
-import './styles.css';
+// Geist font — di-vendor lokal via Fontsource (woff2 ikut ke-bundle Vite → offline).
+import '@fontsource/geist-sans/400.css';
+import '@fontsource/geist-sans/500.css';
+import '@fontsource/geist-sans/600.css';
+import '@fontsource/geist-sans/700.css';
+import '@fontsource/geist-sans/800.css';
+import '@fontsource/geist-mono/400.css';
+import '@fontsource/geist-mono/700.css';
+import './index.css';
 
-// Render markdown and post-process headings to add id attributes
+const cx = (...a) => a.filter(Boolean).join(' ');
+
+/* ─── Reusable Tailwind class primitives ────────────────────────────────── */
+const MAIN      = 'p-7 overflow-auto';
+const PANEL     = 'bg-surface border border-border rounded-[10px] p-[18px]';
+const PANEL_H2  = 'm-0 mb-3 text-[13px] text-muted uppercase tracking-[.04em]';
+const INPUT     = 'w-full border border-border rounded-[7px] bg-surface-2 text-text py-[9px] px-3 font-sans text-[13.5px] normal-case focus:outline-none focus:border-accent';
+const SELECT    = 'w-full border border-border rounded-[7px] bg-surface-2 text-text py-2 px-2.5 font-sans text-[13.5px] normal-case focus:outline-none focus:border-accent';
+const TEXTAREA  = 'w-full min-h-[86px] resize-y border border-border rounded-[7px] bg-surface-2 text-text py-2.5 px-3 font-mono text-[13px] leading-[1.6] normal-case focus:outline-none focus:border-accent';
+const LABEL     = 'grid gap-1.5 text-muted text-[11px] uppercase';
+const BTN_GRAD  = 'bg-accent-grad text-white font-semibold rounded-[7px] px-[18px] py-2.5 cursor-pointer border-0 disabled:opacity-55';
+const BTN_EXPORT= 'bg-transparent border border-border text-muted text-[10px] py-[3px] px-2 rounded cursor-pointer whitespace-nowrap hover:border-accent hover:text-accent';
+const SEARCH    = 'bg-surface-2 border border-border text-text py-[5px] px-2.5 rounded text-[12px] w-[200px] focus:outline-none focus:border-accent';
+const TABLE_WRAP= 'max-h-[240px] overflow-auto scroll-thin [scrollbar-gutter:stable]';
+const TABLE     = 'w-full border-collapse text-[12px]';
+const TH        = 'th-sort py-2 px-2.5 border-b border-[rgba(60,60,67,.75)] text-left whitespace-nowrap text-muted font-semibold uppercase text-[10px] cursor-pointer';
+const TD        = 'py-2 px-2.5 border-b border-[rgba(60,60,67,.75)] text-left whitespace-nowrap';
+const CHART_GRID= 'grid grid-cols-2 gap-3.5 max-[900px]:grid-cols-1';
+
+/* Render markdown and post-process headings to add id attributes */
 function renderMarkdown(md) {
   const html = marked.parse(md);
   const div = document.createElement('div');
@@ -36,9 +63,17 @@ Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointEle
 
 const COLORS = ['#22d3ee','#39d98a','#ffaa3b','#a78bfa','#f472b6','#fb923c','#34d399','#60a5fa','#e879f9','#4ade80'];
 
-const navItems = [
-  { id: 'dashboard', label: 'Results Dashboard' },
-  { id: 'tools',     label: 'Tools & Docs'      },
+const NAV = [
+  { title: 'Utama', items: [
+    { id: '',        label: 'Results Dashboard' },
+    { id: 'run',     label: 'Run Test'          },
+    { id: 'scripts', label: 'Scripts'           },
+    { id: 'results', label: 'Riwayat'           },
+  ]},
+  { title: 'Generators', items: [
+    { id: 'script',   label: 'Script Generator'   },
+    { id: 'scenario', label: 'Scenario Generator' },
+  ]},
 ];
 
 const DOCS_NAV = [
@@ -64,118 +99,136 @@ const DOCS_NAV = [
   ]},
 ];
 
-function getPageFromHash() {
+// One flat route derived from the hash. '' = Results Dashboard.
+function getRoute() {
   const h = window.location.hash.slice(1);
-  if (['run', 'scripts', 'results', 'script', 'scenario'].includes(h) || h.startsWith('docs')) return 'tools';
-  return 'dashboard';
-}
-
-// Sub-view inside "Tools & Docs": a generator or a documentation page.
-function getSubFromHash() {
-  const h = window.location.hash.slice(1);
-  if (h === 'run')      return { kind: 'run' };
-  if (h === 'scripts')  return { kind: 'scripts' };
-  if (h === 'results')  return { kind: 'results' };
-  if (h === 'script')   return { kind: 'script' };
-  if (h === 'scenario') return { kind: 'scenario' };
-  if (h.startsWith('docs/')) return { kind: 'doc', path: h.slice(5) };
-  if (h === 'docs') return { kind: 'doc', path: 'getting-started' };
-  return { kind: 'run' }; // default Tools & Docs = Run Test
-}
-
-function subToHash(sub) {
-  if (sub.kind === 'doc') return `docs/${sub.path}`;
-  return sub.kind; // 'run' | 'scripts' | 'results' | 'script' | 'scenario'
+  if (h === 'docs') return 'docs/getting-started';
+  if (h.startsWith('docs/')) return h;
+  if (['run', 'scripts', 'results', 'script', 'scenario'].includes(h)) return h;
+  return '';
 }
 
 function App() {
-  const [page, setPage] = React.useState(getPageFromHash);
-  const [sub, setSub]   = React.useState(getSubFromHash);
+  const [route, setRoute]   = React.useState(getRoute);
   const [result, setResult] = React.useState(null);
   const [theme, toggleTheme] = useDocsTheme();
 
   React.useEffect(() => {
-    const onPop = () => { setPage(getPageFromHash()); setSub(getSubFromHash()); };
+    const onPop = () => setRoute(getRoute());
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
 
-  // Enter a Tools & Docs sub-view. suffix: 'script' | 'scenario' | 'docs/<path>'
-  const go = (suffix) => {
-    history.pushState(null, '', `#${suffix}`);
-    setPage('tools');
-    setSub(getSubFromHash());
+  // Navigate to any sidebar destination. id: '' | 'run' | … | 'docs/<path>'
+  const go = (id) => {
+    history.pushState(null, '', `#${id}`);
+    setRoute(getRoute());
   };
 
-  // Buka hasil (JSON terparsir) di Results Dashboard.
+  // Open a parsed CSV result inside the Results Dashboard (in-shell).
   const openResult = (resultJson) => {
     setResult(resultJson);
     history.pushState(null, '', '#');
-    setPage('dashboard');
+    setRoute('');
   };
 
-  // Top-level sidebar (Results Dashboard / Tools & Docs) — identical on every page.
-  const navigate = (id) => {
-    if (id === 'tools') { go(subToHash(sub)); return; }
-    history.pushState(null, '', '#');
-    setPage('dashboard');
-  };
-
-  // One shell, one sidebar. The content column swaps; Tools & Docs keeps its
-  // own inner sub-nav so the main sidebar never changes.
   return (
-    <div className="app-shell docs-shell">
-      <aside className="side-nav">
-        <div className="brand">
-          <span className="brand-dot" />
-          <div>
-            <strong>k6 Framework</strong>
-            <small>Performance testing</small>
-          </div>
-        </div>
+    <div className="min-h-screen grid grid-cols-[284px_1fr] max-[900px]:grid-cols-1">
+      <Sidebar route={route} go={go} theme={theme} toggleTheme={toggleTheme} />
 
-        <nav>
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              className={page === item.id ? 'active' : ''}
-              onClick={() => navigate(item.id)}
-            >
-              {item.label}
-            </button>
-          ))}
-        </nav>
-
-        <div className="side-bottom">
-          <button className="legacy-link" onClick={toggleTheme}>
-            {theme === 'dark' ? 'Light mode' : 'Dark mode'}
-          </button>
-        </div>
-      </aside>
-
-      {page === 'tools' ? (
-        <ToolsPage sub={sub} go={go} onResult={openResult} />
-      ) : result ? (
-        <FullScreenResults
-          result={result}
-          onBack={() => setResult(null)}
-          onNewResult={setResult}
-        />
-      ) : (
-        <main className="main-panel">
-          <DashboardPage onData={setResult} />
-        </main>
-      )}
+      {route === '' && (result
+        ? <InShellResults result={result} onBack={() => setResult(null)} onNewResult={setResult} />
+        : <main className={MAIN}><DashboardPage onData={setResult} /></main>)}
+      {route === 'run'      && <main className={MAIN}><RunnerPage go={go} /></main>}
+      {route === 'scripts'  && <main className={MAIN}><ScriptsPage /></main>}
+      {route === 'results'  && <main className={MAIN}><HistoryPage onResult={openResult} /></main>}
+      {route === 'script'   && <main className={MAIN}><ScriptGeneratorPage /></main>}
+      {route === 'scenario' && <main className={MAIN}><ScenarioGeneratorPage /></main>}
+      {route.startsWith('docs/') && <DocContent docPath={route.slice(5)} go={go} />}
     </div>
+  );
+}
+
+/* ─── Theme-toggle icons (only the dark/light control uses an icon) ─────── */
+function MoonIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
+function SunIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
+    </svg>
+  );
+}
+
+/* ─── Sidebar — single grouped nav ──────────────────────────────────────── */
+function Sidebar({ route, go, theme, toggleTheme }) {
+  const navBtn = (active) => cx(
+    'text-left rounded-lg px-[11px] py-[7px] text-[13.5px] cursor-pointer transition-colors',
+    active ? 'text-head bg-surface-2 font-semibold' : 'text-muted hover:text-head hover:bg-border-soft'
+  );
+  return (
+    <aside className="border-r border-border bg-sidebar px-5 py-[26px] flex flex-col gap-5 sticky top-0 h-screen overflow-y-auto scroll-thin max-[900px]:static max-[900px]:h-auto">
+      <div className="flex items-center gap-3">
+        <span className="grid place-items-center w-9 h-9 rounded-[10px] bg-accent-grad text-white font-bold text-[15px] shrink-0 shadow-[0_0_14px_var(--accent-soft)]">k6</span>
+        <div className="leading-tight">
+          <strong className="block text-[15px] font-bold tracking-[-.1px] text-head">k6 Framework</strong>
+          <small className="block mt-0.5 text-[11px] uppercase tracking-[.08em] text-muted">Performance testing</small>
+        </div>
+      </div>
+
+      <nav className="grid gap-px">
+        {NAV.map((group) => (
+          <div key={group.title} className="grid gap-px">
+            <div className="px-[11px] pt-4 pb-1 text-[10.5px] font-bold uppercase tracking-[.09em] text-faint">{group.title}</div>
+            {group.items.map((it) => (
+              <button key={it.id} className={navBtn(route === it.id)} onClick={() => go(it.id)}>{it.label}</button>
+            ))}
+          </div>
+        ))}
+
+        <div className="px-[11px] pt-4 pb-1 text-[10.5px] font-bold uppercase tracking-[.09em] text-faint">Documentation</div>
+        {DOCS_NAV.map((section) => (
+          <div key={section.title} className="grid gap-px">
+            <div className="px-[11px] pt-2.5 pb-0.5 text-[12px] font-semibold text-head">{section.title}</div>
+            {section.items.map((item) => (
+              <button
+                key={item.path}
+                className={navBtn(route === `docs/${item.path}`)}
+                onClick={() => go(`docs/${item.path}`)}
+              >{item.label}</button>
+            ))}
+          </div>
+        ))}
+      </nav>
+
+      <div className="mt-auto pt-3.5 border-t border-border">
+        <button
+          onClick={toggleTheme}
+          className="w-full flex items-center justify-between rounded-lg px-[11px] py-2 text-[13px] text-muted cursor-pointer hover:bg-border-soft hover:text-head transition-colors"
+        >
+          <span className="flex items-center gap-2.5">
+            {theme === 'dark' ? <MoonIcon /> : <SunIcon />}
+            <span>{theme === 'dark' ? 'Mode gelap' : 'Mode terang'}</span>
+          </span>
+          <span className={cx('switch', theme === 'dark' && 'on')}><i /></span>
+        </button>
+      </div>
+    </aside>
   );
 }
 
 function PageHeader({ title, eyebrow, description }) {
   return (
-    <header className="page-header">
-      <span>{eyebrow}</span>
-      <h1>{title}</h1>
-      <p>{description}</p>
+    <header className="max-w-[920px] mb-5">
+      <span className="text-accent-grad inline-block text-[10.5px] font-bold tracking-[.08em] uppercase">{eyebrow}</span>
+      <h1 className="mt-1.5 mb-2 text-[22px] font-bold tracking-[-.01em] text-head">{title}</h1>
+      <p className="m-0 max-w-[680px] text-muted text-[14.5px] leading-[1.65]">{description}</p>
     </header>
   );
 }
@@ -202,56 +255,12 @@ function resolveDocLink(currentPath, href) {
   return baseDir ? `${baseDir}/${clean}` : clean;
 }
 
-function ToolsPage({ sub, go, onResult }) {
-  const isDoc = sub.kind === 'doc';
-  return (
-    <div className="tools-shell">
-      <aside className="tools-nav">
-        <div className="docs-sec">
-          <div className="docs-nav-hd">Run</div>
-          <button className={sub.kind === 'run' ? 'active' : ''} onClick={() => go('run')}>Run Test</button>
-          <button className={sub.kind === 'scripts' ? 'active' : ''} onClick={() => go('scripts')}>Scripts</button>
-          <button className={sub.kind === 'results' ? 'active' : ''} onClick={() => go('results')}>Riwayat</button>
-        </div>
-        <div className="docs-sec">
-          <div className="docs-nav-hd">Generator</div>
-          <button className={sub.kind === 'script' ? 'active' : ''} onClick={() => go('script')}>Script Generator</button>
-          <button className={sub.kind === 'scenario' ? 'active' : ''} onClick={() => go('scenario')}>Scenario Generator</button>
-        </div>
-        {DOCS_NAV.map((section) => (
-          <div key={section.title} className="docs-sec">
-            <div className="docs-nav-hd">{section.title}</div>
-            {section.items.map((item) => (
-              <button
-                key={item.path}
-                className={isDoc && sub.path === item.path ? 'active' : ''}
-                onClick={() => go(`docs/${item.path}`)}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
-        ))}
-      </aside>
-
-      <div className="tools-main">
-        {sub.kind === 'run'      && <main className="main-panel"><RunnerPage go={go} /></main>}
-        {sub.kind === 'scripts'  && <main className="main-panel"><ScriptsPage /></main>}
-        {sub.kind === 'results'  && <main className="main-panel"><HistoryPage onResult={onResult} /></main>}
-        {sub.kind === 'script'   && <main className="main-panel"><ScriptGeneratorPage /></main>}
-        {sub.kind === 'scenario' && <main className="main-panel"><ScenarioGeneratorPage /></main>}
-        {isDoc && <DocContent docPath={sub.path} go={go} />}
-      </div>
-    </div>
-  );
-}
-
 // ─── Run Test — jalankan scenario, log real-time via SSE ────────────────────
 function RunnerPage({ go }) {
   const [scenarios, setScenarios] = React.useState([]);
   const [form, setForm] = React.useState({
     scenario: '', mode: 'testhit', vus: 1, iterations: 1,
-    csv: true, debug: false, webdash: false, tags: '',
+    csv: true, debug: false, webdash: false, prometheus: false, tags: '',
   });
   const [logLines, setLogLines] = React.useState([]);
   const [status, setStatus] = React.useState('idle'); // idle|running|done|error
@@ -281,7 +290,7 @@ function RunnerPage({ go }) {
     setLogLines([]); setStatus('running'); setLastCsv(null); startedRef.current = false;
     const params = new URLSearchParams({
       scenario: form.scenario, mode: form.mode, vus: form.vus, iterations: form.iterations,
-      csv: form.csv, debug: form.debug, webdash: form.webdash, tags: form.tags,
+      csv: form.csv, debug: form.debug, webdash: form.webdash, prometheus: form.prometheus, tags: form.tags,
     });
     const es = new EventSource(`/api/run?${params.toString()}`);
     esRef.current = es;
@@ -313,58 +322,60 @@ function RunnerPage({ go }) {
   };
 
   const statusLabel = { idle: 'Siap', running: 'Berjalan…', done: 'Selesai', error: 'Error' }[status];
+  const statusColor = { idle: 'text-muted', running: 'text-accent-2', done: 'text-good', error: 'text-bad' }[status];
 
   return (
     <>
       <PageHeader eyebrow="Runner" title="Run Test"
         description="Pilih scenario, atur mode & VU, jalankan k6, dan lihat log real-time." />
 
-      <section className="panel run-config">
-        <div className="run-fields">
-          <label>Scenario
-            <select value={form.scenario} onChange={(e) => set('scenario', e.target.value)}>
+      <section className={cx(PANEL, 'grid gap-3.5 mb-3.5')}>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
+          <label className={LABEL}>Scenario
+            <select className={SELECT} value={form.scenario} onChange={(e) => set('scenario', e.target.value)}>
               {scenarios.length === 0 && <option value="">(tidak ada scenario)</option>}
               {scenarios.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
           </label>
-          <label>Mode
-            <select value={form.mode} onChange={(e) => set('mode', e.target.value)}>
+          <label className={LABEL}>Mode
+            <select className={SELECT} value={form.mode} onChange={(e) => set('mode', e.target.value)}>
               <option value="testhit">testhit</option>
               <option value="loadtest">loadtest</option>
               <option value="stress">stress</option>
               <option value="spike">spike</option>
             </select>
           </label>
-          <label>VUs / Total VU
-            <input type="number" min="1" value={form.vus} onChange={(e) => set('vus', e.target.value)} />
+          <label className={LABEL}>VUs / Total VU
+            <input className={INPUT} type="number" min="1" value={form.vus} onChange={(e) => set('vus', e.target.value)} />
           </label>
-          <label>Iterations
-            <input type="number" min="1" value={form.iterations} onChange={(e) => set('iterations', e.target.value)} />
+          <label className={LABEL}>Iterations
+            <input className={INPUT} type="number" min="1" value={form.iterations} onChange={(e) => set('iterations', e.target.value)} />
           </label>
-          <label>Tags (k=v,k=v)
-            <input value={form.tags} placeholder="env=staging,build=123" onChange={(e) => set('tags', e.target.value)} />
+          <label className={LABEL}>Tags (k=v,k=v)
+            <input className={INPUT} value={form.tags} placeholder="env=staging,build=123" onChange={(e) => set('tags', e.target.value)} />
           </label>
         </div>
 
-        <div className="run-toggles">
-          <label className="chk"><input type="checkbox" checked={form.csv} onChange={(e) => set('csv', e.target.checked)} /> Export CSV</label>
-          <label className="chk"><input type="checkbox" checked={form.debug} onChange={(e) => set('debug', e.target.checked)} /> Debug (http-debug)</label>
-          <label className="chk"><input type="checkbox" checked={form.webdash} onChange={(e) => set('webdash', e.target.checked)} /> k6 web dashboard</label>
+        <div className="flex flex-wrap gap-[18px]">
+          <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.csv} onChange={(e) => set('csv', e.target.checked)} /> Export CSV</label>
+          <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.debug} onChange={(e) => set('debug', e.target.checked)} /> Debug (http-debug)</label>
+          <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.webdash} onChange={(e) => set('webdash', e.target.checked)} /> k6 web dashboard</label>
+          <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer" title="Kirim metric via remote write ke Prometheus/Grafana (default localhost:9090)"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.prometheus} onChange={(e) => set('prometheus', e.target.checked)} /> Prometheus (Grafana)</label>
         </div>
 
-        <div className="run-actions">
+        <div className="flex items-center gap-3.5 flex-wrap">
           {status !== 'running'
-            ? <button type="button" className="btn-run" onClick={run} disabled={!form.scenario}>▶ Run</button>
-            : <button type="button" className="btn-stop" onClick={stop}>■ Stop</button>}
-          <span className={`run-status ${status}`}>{statusLabel}</span>
+            ? <button type="button" className={cx(BTN_GRAD, 'text-[14px] px-5 py-[9px] disabled:cursor-not-allowed')} onClick={run} disabled={!form.scenario}>▶ Run</button>
+            : <button type="button" className="bg-bad text-white font-semibold rounded-lg text-[14px] px-5 py-[9px] cursor-pointer border-0" onClick={stop}>■ Stop</button>}
+          <span className={cx('text-[12px]', statusColor)}>{statusLabel}</span>
           {lastCsv && status !== 'running' && (
-            <button type="button" className="csv-link" onClick={() => go('results')}>CSV: {lastCsv} · buka Riwayat →</button>
+            <button type="button" className="bg-transparent border border-border text-muted py-1.5 px-3 rounded-md cursor-pointer text-[12px] hover:border-accent hover:text-accent" onClick={() => go('results')}>CSV: {lastCsv} · buka Riwayat →</button>
           )}
         </div>
       </section>
 
-      <section className="panel run-log-panel">
-        <pre className="run-log" ref={logRef}>{logLines.join('') || 'Log k6 tampil di sini saat test berjalan…'}</pre>
+      <section className={cx(PANEL, 'p-0 overflow-hidden')}>
+        <pre ref={logRef} className="m-0 py-4 px-[18px] bg-code text-text font-mono text-[12.5px] leading-[1.6] whitespace-pre-wrap break-words overflow-auto max-h-[58vh] min-h-[240px] scroll-thin">{logLines.join('') || 'Log k6 tampil di sini saat test berjalan…'}</pre>
       </section>
     </>
   );
@@ -380,14 +391,14 @@ function ScriptsPage() {
     <>
       <PageHeader eyebrow="Workspace" title="Scripts"
         description="Daftar channel & Business Process di workspace/scripts." />
-      {channels === null && <section className="panel"><p>Memuat…</p></section>}
-      {channels && channels.length === 0 && <section className="panel"><p>Belum ada channel di workspace/scripts.</p></section>}
+      {channels === null && <section className={PANEL}><p className="text-muted leading-relaxed">Memuat…</p></section>}
+      {channels && channels.length === 0 && <section className={PANEL}><p className="text-muted leading-relaxed">Belum ada channel di workspace/scripts.</p></section>}
       {channels && channels.map((ch) => (
-        <section className="panel script-card" key={ch.channel}>
-          <h2>{ch.channel}</h2>
+        <section className={cx(PANEL, 'mb-3')} key={ch.channel}>
+          <h2 className={PANEL_H2}>{ch.channel}</h2>
           {ch.bps.length === 0
-            ? <p>— belum ada BP —</p>
-            : <ul className="chip-list">{ch.bps.map((bp) => <li key={bp}><code>{bp}</code></li>)}</ul>}
+            ? <p className="text-muted leading-relaxed">— belum ada BP —</p>
+            : <ul className="list-none m-0 p-0 flex flex-wrap gap-2">{ch.bps.map((bp) => <li key={bp}><code className="font-mono text-[12.5px] text-accent bg-accent-soft py-[3px] px-[9px] rounded-md border border-accent-line">{bp}</code></li>)}</ul>}
         </section>
       ))}
     </>
@@ -422,21 +433,26 @@ function HistoryPage({ onResult }) {
     <>
       <PageHeader eyebrow="Runner" title="Riwayat Run"
         description="Hasil CSV di folder results/. Klik 'Buka' untuk analisa di Results Dashboard." />
-      {error && <div className="error-text">{error}</div>}
-      <section className="panel table-panel">
-        <div className="tw">
-          <table>
-            <thead><tr><th>File</th><th>Ukuran</th><th>Waktu</th><th></th></tr></thead>
+      {error && <div className="text-bad mb-3">{error}</div>}
+      <section className={cx(PANEL, 'overflow-auto')}>
+        <div className={TABLE_WRAP}>
+          <table className={TABLE}>
+            <thead><tr>
+              <th className={cx(TH, 'cursor-default')}>File</th>
+              <th className={cx(TH, 'cursor-default')}>Ukuran</th>
+              <th className={cx(TH, 'cursor-default')}>Waktu</th>
+              <th className={cx(TH, 'cursor-default')}></th>
+            </tr></thead>
             <tbody>
-              {results === null && <tr><td colSpan="4">Memuat…</td></tr>}
-              {results && results.length === 0 && <tr><td colSpan="4">Belum ada hasil di results/.</td></tr>}
+              {results === null && <tr><td className={TD} colSpan="4">Memuat…</td></tr>}
+              {results && results.length === 0 && <tr><td className={TD} colSpan="4">Belum ada hasil di results/.</td></tr>}
               {results && results.map((it) => (
                 <tr key={it.name}>
-                  <td>{it.name}</td>
-                  <td>{it.sizeMB} MB</td>
-                  <td><small>{new Date(it.mtime).toLocaleString()}</small></td>
-                  <td>
-                    <button type="button" className="btn-export" onClick={() => open(it)} disabled={busy === it.name}>
+                  <td className={TD}>{it.name}</td>
+                  <td className={TD}>{it.sizeMB} MB</td>
+                  <td className={TD}><small className="text-muted">{new Date(it.mtime).toLocaleString()}</small></td>
+                  <td className={TD}>
+                    <button type="button" className={BTN_EXPORT} onClick={() => open(it)} disabled={busy === it.name}>
                       {busy === it.name ? 'Membuka…' : 'Buka'}
                     </button>
                   </td>
@@ -501,39 +517,39 @@ function DocContent({ docPath, go }) {
   }, [toc]);
 
   return (
-    <div className="docs-body">
-        <article
-          ref={contentRef}
-          key={docPath}
-          className="docs-content"
-          dangerouslySetInnerHTML={{ __html: loading ? '<p style="color:var(--d-muted)">Loading…</p>' : html }}
-          onClick={(e) => {
-            const a = e.target.closest('a');
-            if (!a) return;
-            const resolved = resolveDocLink(docPath, a.getAttribute('href'));
-            if (!resolved) return;
-            e.preventDefault();
-            go(`docs/${resolved}`);
-          }}
-        />
-        {toc.length > 0 && (
-          <nav className="docs-toc">
-            <h2 className="docs-toc-hd">On this page</h2>
-            <ul>
-              {toc.map(item => (
-                <li key={item.id} className={`lvl${item.level}`}>
-                  <a
-                    href={`#${item.id}`}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth' });
-                    }}
-                  >{item.text}</a>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        )}
+    <div className="flex gap-14 items-start px-14 py-16 pb-[120px] relative max-[720px]:px-5 max-[720px]:py-8">
+      <article
+        ref={contentRef}
+        key={docPath}
+        className="prose-doc flex-1 min-w-0 max-w-[760px]"
+        dangerouslySetInnerHTML={{ __html: loading ? '<p style="color:var(--muted)">Loading…</p>' : html }}
+        onClick={(e) => {
+          const a = e.target.closest('a');
+          if (!a) return;
+          const resolved = resolveDocLink(docPath, a.getAttribute('href'));
+          if (!resolved) return;
+          e.preventDefault();
+          go(`docs/${resolved}`);
+        }}
+      />
+      {toc.length > 0 && (
+        <nav className="docs-toc w-[216px] shrink-0 sticky top-16 self-start max-[1080px]:hidden">
+          <h2 className="text-[12px] font-bold text-head mb-3 pl-[13px]">On this page</h2>
+          <ul className="list-none grid gap-px m-0 p-0">
+            {toc.map(item => (
+              <li key={item.id} className={item.level === 3 ? 'lvl3' : ''}>
+                <a
+                  href={`#${item.id}`}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    document.getElementById(item.id)?.scrollIntoView({ behavior: 'smooth' });
+                  }}
+                >{item.text}</a>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      )}
     </div>
   );
 }
@@ -582,35 +598,37 @@ function DashboardPage({ onData }) {
         description="Muat file CSV hasil k6 untuk melihat metrik test secara visual — TPS/RPS, latency, checks, dan detail per transaksi & API."
       />
 
-      <section className="panel load-panel">
-        <div className="drop-input">
+      <section className={cx(PANEL, 'grid grid-cols-[minmax(240px,360px)_1fr] gap-3.5 mb-[18px] max-[900px]:grid-cols-1')}>
+        <div className="relative grid place-items-center gap-1.5 min-h-[120px] border border-dashed border-border rounded-lg bg-code text-center">
           <input
             type="file"
             accept=".csv"
             onChange={(event) => onUpload(event.target.files?.[0])}
+            className="absolute inset-0 opacity-0 cursor-pointer"
           />
-          <strong>{loading ? 'Parsing CSV...' : 'Upload k6 CSV'}</strong>
-          <span>Atau gunakan Load via path untuk file besar.</span>
+          <strong className="text-accent">{loading ? 'Parsing CSV...' : 'Upload k6 CSV'}</strong>
+          <span className="text-muted text-[11px]">Atau gunakan Load via path untuk file besar.</span>
         </div>
 
-        <div className="path-load">
+        <div className="grid grid-cols-[1fr_auto] content-center gap-2.5">
           <input
+            className={INPUT}
             value={path}
             placeholder="D:\\path\\to\\result.csv"
             onChange={(event) => setPath(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Enter') onLoadPath(); }}
           />
-          <button type="button" onClick={onLoadPath} disabled={loading}>Load</button>
+          <button type="button" className={cx(BTN_GRAD, 'disabled:cursor-wait')} onClick={onLoadPath} disabled={loading}>Load</button>
+          {error && <div className="col-span-full text-bad">{error}</div>}
         </div>
-        {error && <div className="error-text">{error}</div>}
       </section>
 
       {!loading && (
-        <section className="panel">
-          <h2>Cara mendapatkan CSV</h2>
-          <ol className="help-steps">
-            <li>Jalankan test dengan flag CSV: <code>k6perf run -Scenario &lt;nama&gt; -Mode loadtest -Csv</code></li>
-            <li>File otomatis tersimpan di folder <code>results/</code> sebagai <code>&lt;testid&gt;.csv</code>.</li>
+        <section className={PANEL}>
+          <h2 className={PANEL_H2}>Cara mendapatkan CSV</h2>
+          <ol className="m-0 pl-5 text-muted leading-[1.9] marker:text-faint [&_li]:mb-1.5 [&_strong]:text-head">
+            <li>Jalankan test dengan flag CSV: <code className="font-mono text-[12.5px] bg-accent-soft text-accent py-0.5 px-1.5 rounded-[5px]">k6perf run -Scenario &lt;nama&gt; -Mode loadtest -Csv</code></li>
+            <li>File otomatis tersimpan di folder <code className="font-mono text-[12.5px] bg-accent-soft text-accent py-0.5 px-1.5 rounded-[5px]">results/</code> sebagai <code className="font-mono text-[12.5px] bg-accent-soft text-accent py-0.5 px-1.5 rounded-[5px]">&lt;testid&gt;.csv</code>.</li>
             <li>Drag file ke area di atas, atau tempel path lengkapnya lalu klik <strong>Load</strong>.</li>
           </ol>
         </section>
@@ -619,11 +637,13 @@ function DashboardPage({ onData }) {
   );
 }
 
-function FullScreenResults({ result: initialResult, onBack, onNewResult }) {
+function InShellResults({ result: initialResult, onBack, onNewResult }) {
   const [result, setResult] = React.useState(initialResult);
   const [path, setPath] = React.useState('');
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState('');
+
+  React.useEffect(() => { setResult(initialResult); }, [initialResult]);
 
   const loadAnother = async () => {
     if (!path.trim()) return;
@@ -647,35 +667,34 @@ function FullScreenResults({ result: initialResult, onBack, onNewResult }) {
   };
 
   return (
-    <div className="fs-wrap">
-      <header className="fs-topbar">
-        <button className="fs-back" onClick={onBack}>← Back</button>
-        <span className="fs-testid">{result.statCards?.testid || 'result'}</span>
+    <main className={MAIN}>
+      <div className="flex items-center gap-3 flex-wrap mb-4 pb-3 border-b border-border">
+        <button onClick={onBack} className="bg-transparent border border-border text-muted py-[5px] px-3 rounded cursor-pointer whitespace-nowrap hover:text-accent hover:border-accent transition-colors">← Muat CSV lain</button>
+        <span className="text-muted text-[12px] truncate max-w-[280px]">{result.statCards?.testid || 'result'}</span>
         {result.loadTiming && (
-          <span className="fs-timing">
+          <span className="text-[11px] text-accent whitespace-nowrap">
             Loaded {(result.loadTiming.totalMs / 1000).toFixed(1)}s
-            <span className="fs-timing-detail">
-              · CSV {(result.loadTiming.csvMs / 1000).toFixed(1)}s
-              · Queries {(result.loadTiming.queriesMs / 1000).toFixed(1)}s
-              · Build {(result.loadTiming.assemblyMs / 1000).toFixed(1)}s
+            <span className="text-muted">
+              {' '}· CSV {(result.loadTiming.csvMs / 1000).toFixed(1)}s
+              {' '}· Queries {(result.loadTiming.queriesMs / 1000).toFixed(1)}s
+              {' '}· Build {(result.loadTiming.assemblyMs / 1000).toFixed(1)}s
             </span>
           </span>
         )}
-        <div className="fs-load-row">
+        <div className="flex items-center gap-2 ml-auto">
           <input
+            className="bg-surface-2 border border-border text-text py-[5px] px-2.5 rounded w-[320px] text-[12px] focus:outline-none focus:border-accent max-[900px]:w-[180px]"
             value={path}
             placeholder="Load another path…"
             onChange={(e) => setPath(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') loadAnother(); }}
           />
-          <button onClick={loadAnother} disabled={loading}>{loading ? '…' : 'Load'}</button>
-          {error && <span className="fs-error">{error}</span>}
+          <button onClick={loadAnother} disabled={loading} className="bg-accent-grad text-white border-0 py-[5px] px-3.5 rounded cursor-pointer font-semibold text-[12px] disabled:opacity-50">{loading ? '…' : 'Load'}</button>
+          {error && <span className="text-bad text-[11px]">{error}</span>}
         </div>
-      </header>
-      <div className="fs-body">
-        <ResultsView data={result} />
       </div>
-    </div>
+      <ResultsView data={result} />
+    </main>
   );
 }
 
@@ -683,14 +702,14 @@ function FullScreenResults({ result: initialResult, onBack, onNewResult }) {
 function Section({ title, children, defaultOpen = true, badge = null }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
-    <div className="sec-block">
-      <div className="sec-hd" onClick={() => setOpen((o) => !o)}>
-        <span className={`sec-arrow ${open ? 'open' : ''}`}>▶</span>
-        <span className="sec-title">{title}</span>
-        {badge != null && <span className="sec-badge">{badge}</span>}
-        <span className="sec-line" />
+    <div className="mb-3.5">
+      <div className="flex items-center gap-2.5 cursor-pointer py-2.5 select-none" onClick={() => setOpen((o) => !o)}>
+        <span className={cx('text-[10px] text-muted transition-transform', open && 'rotate-90')}>▶</span>
+        <span className="text-[12px] text-muted uppercase tracking-[.06em] font-semibold whitespace-nowrap">{title}</span>
+        {badge != null && <span className="text-[10px] bg-border text-muted py-px px-1.5 rounded-[10px]">{badge}</span>}
+        <span className="flex-1 h-px bg-border" />
       </div>
-      {open && <div className="sec-body">{children}</div>}
+      {open && <div className="grid gap-3.5 pb-3.5">{children}</div>}
     </div>
   );
 }
@@ -740,48 +759,37 @@ function TimeFilterBar({ durationMs, filterRange, onApply, onReset, onGranChange
     ? `${hh}h ${String(mm).padStart(2, '0')}m ${String(ss).padStart(2, '0')}s`
     : `${mm}m ${String(ss).padStart(2, '0')}s`;
 
+  const tfInput = 'bg-surface-2 border border-border text-text py-1 px-2 rounded-[5px] text-[12px] focus:outline-none focus:border-accent';
+  const tfBtn = 'bg-accent-grad text-white border-0 py-[5px] px-2.5 rounded-[5px] cursor-pointer font-semibold text-[11px] self-end';
+  const tfReset = 'bg-transparent border border-border text-muted py-[5px] px-2.5 rounded-[5px] cursor-pointer text-[11px] self-end hover:border-accent hover:text-accent';
+  const tfField = 'flex flex-col gap-[3px]';
+  const tfFieldLbl = 'text-muted text-[10px]';
+
   return (
-    <div className="tf-bar">
-      <span className="tf-label">Time Filter</span>
-      <div className="tf-fields">
-        <div className="tf-field">
-          <span>Start (hh:mm:ss)</span>
-          <input
-            className="tf-input"
-            value={startVal}
-            placeholder="0:00:00"
-            onChange={(e) => setStartVal(e.target.value)}
-          />
+    <div className="flex items-center gap-3 flex-wrap bg-surface border border-border rounded-lg py-2.5 px-3.5 text-[11px]">
+      <span className="text-muted uppercase tracking-[.06em] whitespace-nowrap">Time Filter</span>
+      <div className="flex items-center gap-2 flex-wrap flex-1">
+        <div className={tfField}>
+          <span className={tfFieldLbl}>Start (hh:mm:ss)</span>
+          <input className={cx(tfInput, 'w-[90px]')} value={startVal} placeholder="0:00:00" onChange={(e) => setStartVal(e.target.value)} />
         </div>
-        <span className="tf-arrow">→</span>
-        <div className="tf-field">
-          <span>End (hh:mm:ss)</span>
-          <input
-            className="tf-input"
-            value={endVal}
-            placeholder="hh:mm:ss"
-            onChange={(e) => setEndVal(e.target.value)}
-          />
+        <span className="text-muted self-end mb-1.5">→</span>
+        <div className={tfField}>
+          <span className={tfFieldLbl}>End (hh:mm:ss)</span>
+          <input className={cx(tfInput, 'w-[90px]')} value={endVal} placeholder="hh:mm:ss" onChange={(e) => setEndVal(e.target.value)} />
         </div>
-        <button className="tf-btn" onClick={handleApplyFilter}>Apply Filter</button>
-        <button className="tf-btn tf-reset" onClick={handleResetFilter}>Reset</button>
-        <span className="tf-sep" />
-        <div className="tf-field">
-          <span>Granularity (s)</span>
-          <input
-            className="tf-gran-in"
-            type="number"
-            min="1"
-            value={granVal}
-            placeholder="auto"
-            onChange={(e) => setGranVal(e.target.value)}
-          />
+        <button className={tfBtn} onClick={handleApplyFilter}>Apply Filter</button>
+        <button className={tfReset} onClick={handleResetFilter}>Reset</button>
+        <span className="w-px h-7 bg-border self-center" />
+        <div className={tfField}>
+          <span className={tfFieldLbl}>Granularity (s)</span>
+          <input className={cx(tfInput, 'w-[60px]')} type="number" min="1" value={granVal} placeholder="auto" onChange={(e) => setGranVal(e.target.value)} />
         </div>
-        <button className="tf-btn" onClick={handleApplyGran}>Apply Gran</button>
-        <button className="tf-btn tf-reset" onClick={handleResetGran}>Auto</button>
+        <button className={tfBtn} onClick={handleApplyGran}>Apply Gran</button>
+        <button className={tfReset} onClick={handleResetGran}>Auto</button>
       </div>
-      {filterRange && <span className="filter-badge">filtered</span>}
-      <span className="tf-duration">Duration: {durationLabel}</span>
+      {filterRange && <span className="bg-accent-soft text-accent text-[11px] py-0.5 px-2 rounded-[10px] border border-accent-line">filtered</span>}
+      <span className="ml-auto text-muted text-[10px] whitespace-nowrap">Duration: {durationLabel}</span>
     </div>
   );
 }
@@ -822,11 +830,11 @@ function ResultsView({ data: baseData }) {
   );
 
   return (
-    <section className="results-stack">
-      <div className="result-topline">
+    <section className="grid gap-3.5">
+      <div className="flex items-center justify-between gap-3 flex-wrap border border-border rounded-lg bg-surface py-3.5 px-4">
         <div>
-          <strong>{sc.testid || 'test result'}</strong>
-          <span>{fmtN(filteredData.totalRows)} rows · {fmtDuration(durationMs)}</span>
+          <strong className="block text-head">{sc.testid || 'test result'}</strong>
+          <span className="block mt-1 text-muted">{fmtN(filteredData.totalRows)} rows · {fmtDuration(durationMs)}</span>
         </div>
       </div>
 
@@ -841,7 +849,7 @@ function ResultsView({ data: baseData }) {
 
       {/* ── Section: Performance Overview ── */}
       <Section title="Performance Overview" defaultOpen={true}>
-        <div className="stat-grid">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
           <StatCard label="Total Requests" value={fmtN(sc.totalReqs)} sub={`VUs max: ${sc.vusMax}`} />
           <StatCard label="Success" value={fmtN(sc.successReqs)} sub={`${successPct(sc)}% success`} tone="good" />
           <StatCard label="Errors" value={fmtN(sc.errorReqs)} sub={`${sc.errorPct}% error`} tone="bad" />
@@ -856,7 +864,7 @@ function ResultsView({ data: baseData }) {
             tone={sc.checksSuccessRate >= 99 ? 'good' : sc.checksSuccessRate > 0 ? 'bad' : ''}
           />
         </div>
-        <div className="chart-grid">
+        <div className={CHART_GRID}>
           <ChartPanel
             title="VUs · RPS · Errors"
             series={buildMultiSeries({
@@ -874,7 +882,7 @@ function ResultsView({ data: baseData }) {
 
       {/* ── Section: TPS · RPS · Response Time ── */}
       <Section title="TPS · RPS · Response Time" defaultOpen={true}>
-        <div className="chart-grid">
+        <div className={CHART_GRID}>
           <ChartPanel title="TPS Overall" series={[{ label: 'TPS', data: chartData.tpsAll, color: '#22d3ee', fill: true }]} />
           <ChartPanel title="RPS Overall" series={[{ label: 'RPS', data: chartData.rpsAll, color: '#39d98a', fill: true }]} />
           <ChartPanel
@@ -888,7 +896,7 @@ function ResultsView({ data: baseData }) {
             multiLine
           />
         </div>
-        <div className="chart-grid">
+        <div className={CHART_GRID}>
           <ChartPanel
             title="Transaction Response Time"
             unit=" s"
@@ -917,7 +925,7 @@ function ResultsView({ data: baseData }) {
       {/* ── Section: Checks ── */}
       {checksRows.length > 0 && (
         <Section title="Checks" defaultOpen={false} badge={checksRows.length}>
-          <div className="chart-grid">
+          <div className={CHART_GRID}>
             <ChecksTable rows={checksRows} />
             <ChartPanel
               title="Checks Pass Rate Over Time (%)"
@@ -937,12 +945,13 @@ function ResultsView({ data: baseData }) {
 }
 
 /* ─── StatCard ──────────────────────────────────────────────────────────── */
+const TONE = { good: 'text-good', bad: 'text-bad', cyan: 'text-cyan', warn: 'text-warn', purple: 'text-purple', '': 'text-head' };
 function StatCard({ label, value, sub, tone = '' }) {
   return (
-    <div className={`stat-card ${tone}`}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-      <small>{sub}</small>
+    <div className="border border-border rounded-lg bg-surface p-3.5">
+      <span className="block text-muted text-[11px] uppercase tracking-wide">{label}</span>
+      <strong className={cx('block my-2 text-[22px] font-mono', TONE[tone] || 'text-head')}>{value}</strong>
+      <small className="block text-muted text-[11px]">{sub}</small>
     </div>
   );
 }
@@ -950,8 +959,8 @@ function StatCard({ label, value, sub, tone = '' }) {
 /* ─── ChartPanel — dispatches to LineChart or MultiLineChart ────────────── */
 function ChartPanel({ title, series, unit = '', multiLine = false }) {
   return (
-    <div className="panel chart-panel">
-      <h2>{title}</h2>
+    <div className={PANEL}>
+      <h2 className={PANEL_H2}>{title}</h2>
       {multiLine
         ? <MultiLineChart series={series} unit={unit} />
         : <LineChart series={series} unit={unit} />
@@ -1007,7 +1016,7 @@ function LineChart({ series, unit }) {
   }, [series, unit]);
 
   return (
-    <div className="chart-body">
+    <div className="relative h-[280px]">
       <canvas ref={canvasRef} />
     </div>
   );
@@ -1077,21 +1086,21 @@ function MultiLineChart({ series, unit }) {
 
   return (
     <div>
-      <div className="chart-body">
+      <div className="relative h-[280px]">
         <canvas ref={canvasRef} />
       </div>
-      <div className="multi-leg">
+      <div className="flex flex-wrap gap-2 mt-2">
         {visible.map((item) => (
-          <span key={item.label} className="leg-item">
-            <span className="leg-dot" style={{ background: item.color }} />
+          <span key={item.label} className="flex items-center gap-[5px] text-[11px] text-muted">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: item.color }} />
             {item.label}
           </span>
         ))}
         {extra > 0 && !showAll && (
-          <button className="leg-toggle" onClick={() => setShowAll(true)}>+ {extra} more</button>
+          <button className="bg-transparent border border-border text-muted text-[10px] py-0.5 px-1.5 rounded cursor-pointer hover:border-accent hover:text-accent" onClick={() => setShowAll(true)}>+ {extra} more</button>
         )}
         {showAll && extra > 0 && (
-          <button className="leg-toggle" onClick={() => setShowAll(false)}>show less</button>
+          <button className="bg-transparent border border-border text-muted text-[10px] py-0.5 px-1.5 rounded cursor-pointer hover:border-accent hover:text-accent" onClick={() => setShowAll(false)}>show less</button>
         )}
       </div>
     </div>
@@ -1115,9 +1124,7 @@ function ChecksTable({ rows }) {
 
   const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
   const th = (col, label) => (
-    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
-      {label}
-    </th>
+    <th className={cx(TH, sort.col === col && sort.dir)} onClick={() => toggle(col)}>{label}</th>
   );
 
   const handleExport = () => {
@@ -1127,12 +1134,12 @@ function ChecksTable({ rows }) {
   };
 
   return (
-    <div className="panel table-panel">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <h2 style={{ margin: 0 }}>Checks</h2>
-        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+    <div className={cx(PANEL, 'overflow-auto')}>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className={cx(PANEL_H2, 'mb-0')}>Checks</h2>
+        <button className={BTN_EXPORT} onClick={handleExport}>Export CSV</button>
       </div>
-      <div className="tw"><table>
+      <div className={TABLE_WRAP}><table className={TABLE}>
         <thead>
           <tr>
             {th('check', 'Check')}
@@ -1147,10 +1154,10 @@ function ChecksTable({ rows }) {
             const failPct = total ? ((row.fail || 0) / total * 100).toFixed(1) : '0.0';
             return (
               <tr key={i}>
-                <td>{row.check}</td>
-                <td>{fmtN(row.pass)}</td>
-                <td className={row.fail > 0 ? 'td-bad' : ''}>{fmtN(row.fail)}</td>
-                <td>{fmtN(total)} <small>{failPct}% fail</small></td>
+                <td className={TD}>{row.check}</td>
+                <td className={TD}>{fmtN(row.pass)}</td>
+                <td className={cx(TD, row.fail > 0 && 'text-bad')}>{fmtN(row.fail)}</td>
+                <td className={TD}>{fmtN(total)} <small className="block mt-[3px] text-muted">{failPct}% fail</small></td>
               </tr>
             );
           })}
@@ -1190,9 +1197,7 @@ function TpsSummaryTable({ data }) {
 
   const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
   const th = (col, label) => (
-    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
-      {label}
-    </th>
+    <th className={cx(TH, sort.col === col && sort.dir)} onClick={() => toggle(col)}>{label}</th>
   );
 
   const handleExport = () => {
@@ -1204,12 +1209,12 @@ function TpsSummaryTable({ data }) {
   if (rows.length === 0) return null;
 
   return (
-    <div className="panel table-panel">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <h2 style={{ margin: 0 }}>TPS Summary</h2>
-        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+    <div className={cx(PANEL, 'overflow-auto')}>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className={cx(PANEL_H2, 'mb-0')}>TPS Summary</h2>
+        <button className={BTN_EXPORT} onClick={handleExport}>Export CSV</button>
       </div>
-      <div className="tw"><table>
+      <div className={TABLE_WRAP}><table className={TABLE}>
         <thead>
           <tr>
             {th('tx', 'Transaction')}
@@ -1221,10 +1226,10 @@ function TpsSummaryTable({ data }) {
         <tbody>
           {sorted.map((row) => (
             <tr key={row.tx}>
-              <td>{row.tx}</td>
-              <td>{row.minTps.toFixed(2)}</td>
-              <td>{row.avgTps.toFixed(2)}</td>
-              <td>{row.maxTps.toFixed(2)}</td>
+              <td className={TD}>{row.tx}</td>
+              <td className={TD}>{row.minTps.toFixed(2)}</td>
+              <td className={TD}>{row.avgTps.toFixed(2)}</td>
+              <td className={TD}>{row.maxTps.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
@@ -1267,9 +1272,7 @@ function RpsSummaryTable({ data }) {
 
   const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
   const th = (col, label) => (
-    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
-      {label}
-    </th>
+    <th className={cx(TH, sort.col === col && sort.dir)} onClick={() => toggle(col)}>{label}</th>
   );
 
   const handleExport = () => {
@@ -1281,12 +1284,12 @@ function RpsSummaryTable({ data }) {
   if (rows.length === 0) return null;
 
   return (
-    <div className="panel table-panel">
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-        <h2 style={{ margin: 0 }}>RPS Summary — by API</h2>
-        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+    <div className={cx(PANEL, 'overflow-auto')}>
+      <div className="flex items-center justify-between mb-2">
+        <h2 className={cx(PANEL_H2, 'mb-0')}>RPS Summary — by API</h2>
+        <button className={BTN_EXPORT} onClick={handleExport}>Export CSV</button>
       </div>
-      <div className="tw"><table>
+      <div className={TABLE_WRAP}><table className={TABLE}>
         <thead>
           <tr>
             {th('tx', 'Transaction')}
@@ -1300,12 +1303,12 @@ function RpsSummaryTable({ data }) {
         <tbody>
           {sorted.map((row) => (
             <tr key={row.key}>
-              <td>{row.tx}</td>
-              <td>{row.apiName}</td>
-              <td>{row.minRps.toFixed(2)}</td>
-              <td>{row.avgRps.toFixed(2)}</td>
-              <td>{row.p90Rps.toFixed(2)}</td>
-              <td>{row.maxRps.toFixed(2)}</td>
+              <td className={TD}>{row.tx}</td>
+              <td className={TD}>{row.apiName}</td>
+              <td className={TD}>{row.minRps.toFixed(2)}</td>
+              <td className={TD}>{row.avgRps.toFixed(2)}</td>
+              <td className={TD}>{row.p90Rps.toFixed(2)}</td>
+              <td className={TD}>{row.maxRps.toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
@@ -1337,9 +1340,7 @@ function FullTxTable({ rows }) {
 
   const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
   const th = (col, label) => (
-    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
-      {label}
-    </th>
+    <th className={cx(TH, sort.col === col && sort.dir)} onClick={() => toggle(col)}>{label}</th>
   );
 
   const handleExport = () => {
@@ -1351,18 +1352,18 @@ function FullTxTable({ rows }) {
   };
 
   return (
-    <div className="panel table-panel">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0, flex: 1 }}>Transactions</h2>
+    <div className={cx(PANEL, 'overflow-auto')}>
+      <div className="flex items-center gap-2.5 mb-2.5 flex-wrap">
+        <h2 className={cx(PANEL_H2, 'mb-0 flex-1')}>Transactions</h2>
         <input
-          className="search-input"
+          className={SEARCH}
           placeholder="Search transaction…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+        <button className={BTN_EXPORT} onClick={handleExport}>Export CSV</button>
       </div>
-      <div className="tw"><table>
+      <div className={TABLE_WRAP}><table className={TABLE}>
         <thead>
           <tr>
             {th('transaction', 'Transaction')}
@@ -1379,15 +1380,15 @@ function FullTxTable({ rows }) {
         <tbody>
           {sorted.map((row) => (
             <tr key={row.transaction}>
-              <td><strong>{row.transaction}</strong></td>
-              <td>{fmtSec(row.min)}</td>
-              <td>{fmtSec(row.avg)}</td>
-              <td>{fmtSec(row.max)}</td>
-              <td>{fmtSec(row.p90)}</td>
-              <td>{fmtN(row.success)}</td>
-              <td className={row.error > 0 ? 'td-bad' : ''}>{fmtN(row.error)}</td>
-              <td>{fmtN(row.sample)}</td>
-              <td>{row.successRate}%</td>
+              <td className={TD}><strong className="text-head">{row.transaction}</strong></td>
+              <td className={TD}>{fmtSec(row.min)}</td>
+              <td className={TD}>{fmtSec(row.avg)}</td>
+              <td className={TD}>{fmtSec(row.max)}</td>
+              <td className={TD}>{fmtSec(row.p90)}</td>
+              <td className={TD}>{fmtN(row.success)}</td>
+              <td className={cx(TD, row.error > 0 && 'text-bad')}>{fmtN(row.error)}</td>
+              <td className={TD}>{fmtN(row.sample)}</td>
+              <td className={TD}>{row.successRate}%</td>
             </tr>
           ))}
         </tbody>
@@ -1428,9 +1429,7 @@ function FullApiTable({ rows }) {
 
   const toggle = (col) => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }));
   const th = (col, label) => (
-    <th className={`th-sort${sort.col === col ? ` ${sort.dir}` : ''}`} onClick={() => toggle(col)} style={{ cursor: 'pointer' }}>
-      {label}
-    </th>
+    <th className={cx(TH, sort.col === col && sort.dir)} onClick={() => toggle(col)}>{label}</th>
   );
 
   const handleExport = () => {
@@ -1442,28 +1441,28 @@ function FullApiTable({ rows }) {
   };
 
   return (
-    <div className="panel table-panel">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
-        <h2 style={{ margin: 0, flex: 1 }}>APIs</h2>
+    <div className={cx(PANEL, 'overflow-auto')}>
+      <div className="flex items-center gap-2.5 mb-2.5 flex-wrap">
+        <h2 className={cx(PANEL_H2, 'mb-0 flex-1')}>APIs</h2>
         {txOptions.length > 0 && (
           <select
             value={txFilter}
             onChange={(e) => setTxFilter(e.target.value)}
-            style={{ fontSize: 12, padding: '4px 8px' }}
+            className="border border-border rounded-[7px] bg-surface-2 text-text py-1 px-2 text-[12px] focus:outline-none focus:border-accent"
           >
             <option value="">All transactions</option>
             {txOptions.map((tx) => <option key={tx} value={tx}>{tx}</option>)}
           </select>
         )}
         <input
-          className="search-input"
+          className={SEARCH}
           placeholder="Search API…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
-        <button className="btn-export" onClick={handleExport}>Export CSV</button>
+        <button className={BTN_EXPORT} onClick={handleExport}>Export CSV</button>
       </div>
-      <div className="tw"><table>
+      <div className={TABLE_WRAP}><table className={TABLE}>
         <thead>
           <tr>
             {th('transaction', 'Business Process')}
@@ -1481,16 +1480,16 @@ function FullApiTable({ rows }) {
         <tbody>
           {sorted.map((row, i) => (
             <tr key={`${row.transaction}-${row.api}-${i}`}>
-              <td><small>{row.transaction}</small></td>
-              <td><strong>{row.api}</strong></td>
-              <td>{fmtSec(row.min)}</td>
-              <td>{fmtSec(row.avg)}</td>
-              <td>{fmtSec(row.max)}</td>
-              <td>{fmtSec(row.p90)}</td>
-              <td>{fmtN(row.success)}</td>
-              <td className={row.error > 0 ? 'td-bad' : ''}>{fmtN(row.error)}</td>
-              <td>{fmtN(row.sample)}</td>
-              <td>{row.successRate}%</td>
+              <td className={TD}><small className="text-muted">{row.transaction}</small></td>
+              <td className={TD}><strong className="text-head">{row.api}</strong></td>
+              <td className={TD}>{fmtSec(row.min)}</td>
+              <td className={TD}>{fmtSec(row.avg)}</td>
+              <td className={TD}>{fmtSec(row.max)}</td>
+              <td className={TD}>{fmtSec(row.p90)}</td>
+              <td className={TD}>{fmtN(row.success)}</td>
+              <td className={cx(TD, row.error > 0 && 'text-bad')}>{fmtN(row.error)}</td>
+              <td className={TD}>{fmtN(row.sample)}</td>
+              <td className={TD}>{row.successRate}%</td>
             </tr>
           ))}
         </tbody>
@@ -1499,7 +1498,7 @@ function FullApiTable({ rows }) {
   );
 }
 
-/* ─── ScriptGeneratorPage (unchanged) ──────────────────────────────────── */
+/* ─── ScriptGeneratorPage ──────────────────────────────────────────────── */
 function ScriptGeneratorPage() {
   const [channel, setChannel] = React.useState('_exampleChannel');
   const [bpName, setBpName] = React.useState('BP001_LoginInquiry');
@@ -1563,49 +1562,49 @@ function ScriptGeneratorPage() {
         description="Fondasi UI untuk membuat BP/API flow tanpa menulis JavaScript langsung."
       />
 
-      <section className="builder-layout">
-        <form className="panel form-panel">
-          <label>
+      <section className="grid grid-cols-2 gap-3.5 max-[900px]:grid-cols-1">
+        <form className={cx(PANEL, 'grid gap-3.5 content-start')}>
+          <label className={LABEL}>
             Channel
-            <input value={channel} onChange={(event) => setChannel(event.target.value)} placeholder="_exampleChannel" />
+            <input className={INPUT} value={channel} onChange={(event) => setChannel(event.target.value)} placeholder="_exampleChannel" />
           </label>
-          <label>
+          <label className={LABEL}>
             Business Process Name
-            <input value={bpName} onChange={(event) => setBpName(event.target.value)} placeholder="BP001_LoginInquiry" />
+            <input className={INPUT} value={bpName} onChange={(event) => setBpName(event.target.value)} placeholder="BP001_LoginInquiry" />
           </label>
-          <label>
+          <label className={LABEL}>
             Base URL Parameter
-            <input value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="parameter.BASE_URL" />
+            <input className={INPUT} value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="parameter.BASE_URL" />
           </label>
-          <button type="button" onClick={addStep}>Add Step</button>
+          <button type="button" className={cx(BTN_GRAD, 'w-fit')} onClick={addStep}>Add Step</button>
 
-          <div className="builder-list">
+          <div className="grid gap-3">
             {steps.map((step, index) => (
-              <div className="builder-item" key={step.id}>
-                <div className="builder-item-head">
-                  <strong>Step {index + 1}</strong>
-                  <button type="button" onClick={() => removeStep(step.id)}>Remove</button>
+              <div className="grid gap-2.5 border border-border rounded-lg bg-surface-2 p-3" key={step.id}>
+                <div className="flex items-center justify-between gap-2.5">
+                  <strong className="text-text">Step {index + 1}</strong>
+                  <button type="button" className="w-auto bg-transparent border border-bad text-bad py-[5px] px-2 rounded-md cursor-pointer text-[13px]" onClick={() => removeStep(step.id)}>Remove</button>
                 </div>
-                <label>
+                <label className={LABEL}>
                   Transaction
-                  <input value={step.transaction} onChange={(event) => updateStep(step.id, { transaction: event.target.value })} />
+                  <input className={INPUT} value={step.transaction} onChange={(event) => updateStep(step.id, { transaction: event.target.value })} />
                 </label>
 
-                <div className="api-list">
+                <div className="grid gap-2.5">
                   {step.apis.map((apiItem, apiIndex) => (
-                    <div className="api-item" key={apiItem.id}>
-                      <div className="builder-item-head">
-                        <strong>API {apiIndex + 1}</strong>
-                        <button type="button" onClick={() => removeApi(step.id, apiItem.id)}>Remove API</button>
+                    <div className="grid gap-2.5 border border-[rgba(60,60,67,.85)] rounded-[7px] bg-surface p-[11px]" key={apiItem.id}>
+                      <div className="flex items-center justify-between gap-2.5">
+                        <strong className="text-text">API {apiIndex + 1}</strong>
+                        <button type="button" className="w-auto bg-transparent border border-bad text-bad py-[5px] px-2 rounded-md cursor-pointer text-[13px]" onClick={() => removeApi(step.id, apiItem.id)}>Remove API</button>
                       </div>
-                      <label>
+                      <label className={LABEL}>
                         API Name
-                        <input value={apiItem.name} onChange={(event) => updateApi(step.id, apiItem.id, { name: event.target.value })} />
+                        <input className={INPUT} value={apiItem.name} onChange={(event) => updateApi(step.id, apiItem.id, { name: event.target.value })} />
                       </label>
-                      <div className="inline-fields">
-                        <label>
+                      <div className="grid grid-cols-[minmax(100px,.7fr)_1fr] gap-2.5 max-[900px]:grid-cols-1">
+                        <label className={LABEL}>
                           Method
-                          <select value={apiItem.method} onChange={(event) => updateApi(step.id, apiItem.id, { method: event.target.value })}>
+                          <select className={SELECT} value={apiItem.method} onChange={(event) => updateApi(step.id, apiItem.id, { method: event.target.value })}>
                             <option>GET</option>
                             <option>POST</option>
                             <option>PUT</option>
@@ -1613,23 +1612,25 @@ function ScriptGeneratorPage() {
                             <option>DELETE</option>
                           </select>
                         </label>
-                        <label>
+                        <label className={LABEL}>
                           Path
-                          <input value={apiItem.path} onChange={(event) => updateApi(step.id, apiItem.id, { path: event.target.value })} />
+                          <input className={INPUT} value={apiItem.path} onChange={(event) => updateApi(step.id, apiItem.id, { path: event.target.value })} />
                         </label>
                       </div>
-                      <label>
+                      <label className={LABEL}>
                         Headers JSON (optional)
                         <input
+                          className={INPUT}
                           value={apiItem.headers}
                           onChange={(event) => updateApi(step.id, apiItem.id, { headers: event.target.value })}
                           placeholder='{"Content-Type":"application/json"}'
                         />
                       </label>
                       {hasBody(apiItem.method) && (
-                        <label>
+                        <label className={LABEL}>
                           Body JSON / Expression
                           <textarea
+                            className={TEXTAREA}
                             value={apiItem.body}
                             onChange={(event) => updateApi(step.id, apiItem.id, { body: event.target.value })}
                             placeholder='JSON.stringify({ id: data.id })'
@@ -1639,22 +1640,22 @@ function ScriptGeneratorPage() {
                     </div>
                   ))}
                 </div>
-                <button type="button" className="secondary-action" onClick={() => addApi(step.id)}>Add API</button>
+                <button type="button" className="w-fit bg-transparent border border-accent text-accent rounded-[7px] px-[18px] py-2.5 cursor-pointer hover:bg-accent-soft" onClick={() => addApi(step.id)}>Add API</button>
               </div>
             ))}
           </div>
         </form>
 
-        <div className="panel code-preview">
-          <h2>Preview</h2>
-          <pre>{preview}</pre>
+        <div className={PANEL}>
+          <h2 className={PANEL_H2}>Preview</h2>
+          <pre className="relative m-0 p-3.5 overflow-auto rounded-lg bg-code text-text font-mono text-[12.5px] leading-[1.65] min-h-[360px] scroll-thin before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-accent-grad before:rounded-t-lg">{preview}</pre>
         </div>
       </section>
     </>
   );
 }
 
-/* ─── ScenarioGeneratorPage (unchanged) ────────────────────────────────── */
+/* ─── ScenarioGeneratorPage ────────────────────────────────────────────── */
 function ScenarioGeneratorPage() {
   const [scenarioName, setScenarioName] = React.useState('scenario_myproject');
   const [rampStep, setRampStep] = React.useState(5);
@@ -1696,45 +1697,45 @@ function ScenarioGeneratorPage() {
         description="Fondasi UI untuk menyusun daftar BP, alokasi VU, dan konfigurasi ramp-up."
       />
 
-      <section className="builder-layout">
-        <form className="panel form-panel">
-          <label>
+      <section className="grid grid-cols-2 gap-3.5 max-[900px]:grid-cols-1">
+        <form className={cx(PANEL, 'grid gap-3.5 content-start')}>
+          <label className={LABEL}>
             Scenario Name
-            <input value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="scenario_myproject" />
+            <input className={INPUT} value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="scenario_myproject" />
           </label>
-          <label>
+          <label className={LABEL}>
             Ramp Step
-            <input type="number" value={rampStep} onChange={(event) => setRampStep(event.target.value)} placeholder="5" />
+            <input className={INPUT} type="number" value={rampStep} onChange={(event) => setRampStep(event.target.value)} placeholder="5" />
           </label>
-          <label>
+          <label className={LABEL}>
             Hold Duration (minutes)
-            <input type="number" value={holdDuration} onChange={(event) => setHoldDuration(event.target.value)} placeholder="10" />
+            <input className={INPUT} type="number" value={holdDuration} onChange={(event) => setHoldDuration(event.target.value)} placeholder="10" />
           </label>
-          <button type="button" onClick={addBp}>Add BP Allocation</button>
+          <button type="button" className={cx(BTN_GRAD, 'w-fit')} onClick={addBp}>Add BP Allocation</button>
 
-          <div className="builder-list">
+          <div className="grid gap-3">
             {bps.map((bp, index) => (
-              <div className="builder-item" key={bp.id}>
-                <div className="builder-item-head">
-                  <strong>BP Allocation {index + 1}</strong>
-                  <button type="button" onClick={() => removeBp(bp.id)}>Remove</button>
+              <div className="grid gap-2.5 border border-border rounded-lg bg-surface-2 p-3" key={bp.id}>
+                <div className="flex items-center justify-between gap-2.5">
+                  <strong className="text-text">BP Allocation {index + 1}</strong>
+                  <button type="button" className="w-auto bg-transparent border border-bad text-bad py-[5px] px-2 rounded-md cursor-pointer text-[13px]" onClick={() => removeBp(bp.id)}>Remove</button>
                 </div>
-                <label>
+                <label className={LABEL}>
                   BP Name
-                  <input value={bp.name} onChange={(event) => updateBp(bp.id, { name: event.target.value })} />
+                  <input className={INPUT} value={bp.name} onChange={(event) => updateBp(bp.id, { name: event.target.value })} />
                 </label>
-                <label>
+                <label className={LABEL}>
                   Function Name
-                  <input value={bp.fn} onChange={(event) => updateBp(bp.id, { fn: event.target.value })} />
+                  <input className={INPUT} value={bp.fn} onChange={(event) => updateBp(bp.id, { fn: event.target.value })} />
                 </label>
-                <div className="inline-fields">
-                  <label>
+                <div className="grid grid-cols-[minmax(100px,.7fr)_1fr] gap-2.5 max-[900px]:grid-cols-1">
+                  <label className={LABEL}>
                     Users
-                    <input type="number" value={bp.users} onChange={(event) => updateBp(bp.id, { users: event.target.value })} />
+                    <input className={INPUT} type="number" value={bp.users} onChange={(event) => updateBp(bp.id, { users: event.target.value })} />
                   </label>
-                  <label>
+                  <label className={LABEL}>
                     Think Time
-                    <input type="number" value={bp.thinkTime} onChange={(event) => updateBp(bp.id, { thinkTime: event.target.value })} />
+                    <input className={INPUT} type="number" value={bp.thinkTime} onChange={(event) => updateBp(bp.id, { thinkTime: event.target.value })} />
                   </label>
                 </div>
               </div>
@@ -1742,9 +1743,9 @@ function ScenarioGeneratorPage() {
           </div>
         </form>
 
-        <div className="panel code-preview">
-          <h2>Preview</h2>
-          <pre>{preview}</pre>
+        <div className={PANEL}>
+          <h2 className={PANEL_H2}>Preview</h2>
+          <pre className="relative m-0 p-3.5 overflow-auto rounded-lg bg-code text-text font-mono text-[12.5px] leading-[1.65] min-h-[360px] scroll-thin before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-accent-grad before:rounded-t-lg">{preview}</pre>
         </div>
       </section>
     </>

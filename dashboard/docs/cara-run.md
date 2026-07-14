@@ -107,11 +107,19 @@ Setiap run mencetak ringkasan, mis. `[distributeVus] total 100 VU → BP001=60, 
 
 ## Prometheus Remote Write (Grafana)
 
-Set env berikut di CMD sebelum menjalankan `k6perf`:
+Cukup tambahkan flag `-Prometheus` (alias `-Prom`) saat run — tidak perlu mengedit `k6perf.cmd`:
 
 ```bat
-set K6_PROMETHEUS_RW_SERVER_URL=http://<prometheus-host>:9090/api/v1/write
-set K6_PROMETHEUS_RW_TREND_STATS=p(90),p(95),p(99),min,max,avg
+k6perf run -Scenario scenario_myproject -Mode loadtest -Prometheus
 ```
 
-Lalu tambahkan output `--out experimental-prometheus-rw` pada variabel `EXTRA` di `k6perf.cmd` (bagian `:run_go`).
+Config (host tujuan & trend stats) ada di **`framework/observability/prometheus.env`** — dibaca oleh CLI maupun dashboard. Default `http://localhost:9090/api/v1/write`; ganti host di file itu bila Prometheus bukan di localhost:
+
+```
+# framework/observability/prometheus.env
+K6_PROMETHEUS_RW_SERVER_URL=http://<prometheus-host>:9090/api/v1/write
+K6_PROMETHEUS_RW_TREND_STATS=p(90),p(95),p(99),min,max,avg
+```
+
+> Env yang di-`set` manual sebelum run tetap diprioritaskan di atas file ini.
+> Prometheus harus dijalankan dengan `--web.enable-remote-write-receiver`. Config server contoh: `framework/observability/k6-perf-framework_prometheus.yml`.

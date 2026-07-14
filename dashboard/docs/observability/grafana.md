@@ -6,11 +6,11 @@ Stack: **k6 → Prometheus (remote write) → Grafana** + **k6 → Loki** untuk 
 
 ### 1. Prometheus
 
-Jalankan dengan flag `--web.enable-remote-write-receiver`. Gunakan config dari `lib/observability/k6-perf-framework_prometheus.yml` (ada di root repo).
+Jalankan dengan flag `--web.enable-remote-write-receiver`. Gunakan config dari `framework/observability/k6-perf-framework_prometheus.yml`.
 
 ### 2. Loki
 
-Jalankan dengan config dari `lib/observability/k6-perf-framework_loki.yml`. Update host di `lib/observability/loki.js`:
+Jalankan dengan config dari `framework/observability/k6-perf-framework_loki.yml`. Update host di `framework/observability/loki.js`:
 
 ```js
 http.post("http://<loki-host>:3100/loki/api/v1/push", ...)
@@ -18,7 +18,7 @@ http.post("http://<loki-host>:3100/loki/api/v1/push", ...)
 
 ### 3. Grafana
 
-Import dashboard dari `lib/observability/k6-perf-framework_grafana.json`:
+Import dashboard dari `framework/observability/k6-perf-framework_grafana.json`:
 
 ```
 Menu → Dashboards → Import → Upload JSON file
@@ -26,24 +26,21 @@ Menu → Dashboards → Import → Upload JSON file
 
 ### 4. Aktifkan Remote Write
 
-Set env berikut sebelum menjalankan `k6perf`:
+Cukup pakai flag `-Prometheus` (alias `-Prom`) — tidak perlu mengedit `k6perf.cmd`:
 
 ```bat
-set K6_PROMETHEUS_RW_SERVER_URL=http://<prometheus-host>:9090/api/v1/write
-set K6_PROMETHEUS_RW_TREND_STATS=p(90),p(95),p(99),min,max,avg
+k6perf run -Mode loadtest -Scenario scenario_myproject -Prometheus
 ```
 
-Dan tambahkan output `--out experimental-prometheus-rw` pada variabel `EXTRA` di `k6perf.cmd` (bagian `:run_go`):
+Host tujuan & trend stats diatur di **`framework/observability/prometheus.env`** (satu sumber untuk CLI & dashboard). Default `http://localhost:9090/api/v1/write` — ubah host di file itu bila Prometheus bukan di localhost:
 
-```bat
-set "EXTRA=%EXTRA% --out experimental-prometheus-rw"
+```
+# framework/observability/prometheus.env
+K6_PROMETHEUS_RW_SERVER_URL=http://<prometheus-host>:9090/api/v1/write
+K6_PROMETHEUS_RW_TREND_STATS=p(90),p(95),p(99),min,max,avg
 ```
 
-Lalu jalankan seperti biasa:
-
-```bat
-k6perf run -Mode loadtest -Scenario scenario_myproject
-```
+Env yang di-`set` manual sebelum run tetap menang di atas file ini.
 
 ## Panel Grafana
 

@@ -45,7 +45,7 @@ k6perf run -Scenario scenario_example -Mode testhit
 ## Command
 
 ```bat
-k6perf run  -Scenario <nama> -Mode <mode> [-Vus N] [-Iterations N] [-Debug] [-Dashboard] [-Csv]
+k6perf run  -Scenario <nama> -Mode <mode> [-Vus N] [-Iterations N] [-Debug] [-Dashboard] [-Csv] [-Prometheus]
 k6perf list                 :: daftar scenario & channel
 k6perf dashboard            :: web dashboard di http://localhost:3000
 k6perf help
@@ -60,6 +60,7 @@ k6perf help
 | `-Debug` | off | `--http-debug=full` |
 | `-Dashboard` | off | k6 web dashboard (`localhost:5665`) |
 | `-Csv` | off | Export hasil ke `results\<testid>.csv` |
+| `-Prometheus` | off | Kirim metric via remote write ke Prometheus/Grafana (alias `-Prom`) |
 
 > Nama parameter tidak case-sensitive — `-Scenario` sama dengan `-scenario`.
 
@@ -87,12 +88,50 @@ k6perf run -Scenario scenario_example -Mode testhit -Debug
 :: k6 web dashboard live (buka http://localhost:5665) + CSV
 k6perf run -Scenario scenario_myproject -Mode loadtest -Dashboard -Csv
 
+:: Kirim metric real-time ke Prometheus/Grafana
+k6perf run -Scenario scenario_myproject -Mode loadtest -Prometheus
+
 :: Lihat scenario & channel yang tersedia
 k6perf list
 
 :: Jalankan web dashboard (analisa CSV + docs) di http://localhost:3000
 k6perf dashboard
 ```
+
+## Observability — Prometheus + Grafana
+
+Selain CSV + web dashboard bawaan, metric test bisa dikirim **real-time** ke stack Grafana:
+
+- **Prometheus** — menerima & menyimpan metric k6 lewat *remote write* (RPS, TPS, latency, error rate, dst).
+- **Grafana** — memvisualkan metric dari Prometheus jadi panel/grafik. Error log ditampung **Loki**.
+
+Alur: **k6 → Prometheus (remote write) → Grafana**  ( + **k6 → Loki** untuk log error ).
+
+### Cara pakai
+
+Cukup tambah flag `-Prometheus` (alias `-Prom`) — **tidak perlu mengedit file apa pun**:
+
+```bat
+k6perf run -Scenario scenario_myproject -Mode loadtest -Prometheus
+```
+
+Host tujuan & trend stats diatur di **`framework/observability/prometheus.env`** (satu sumber untuk CLI & dashboard). Default `http://localhost:9090/api/v1/write` — cukup ubah host di file itu bila Prometheus bukan di localhost:
+
+```
+# framework/observability/prometheus.env
+K6_PROMETHEUS_RW_SERVER_URL=http://<prometheus-host>:9090/api/v1/write
+K6_PROMETHEUS_RW_TREND_STATS=p(90),p(95),p(99),min,max,avg
+```
+
+> Env yang di-`set` manual sebelum run tetap diprioritaskan. Dari **web dashboard** juga bisa: buka **Run Test** → centang **"Prometheus (Grafana)"**.
+
+### Setup singkat
+
+1. **Prometheus** — jalankan dengan `--web.enable-remote-write-receiver`. Config server contoh: `framework/observability/k6-perf-framework_prometheus.yml`; host remote-write diatur di `framework/observability/prometheus.env`.
+2. **Grafana** — import dashboard `framework/observability/k6-perf-framework_grafana.json`.
+3. **Loki** (opsional, untuk error log) — config `framework/observability/k6-perf-framework_loki.yml`; host di `framework/observability/loki.js`.
+
+Panduan lengkap: web dashboard → **Documentation → Observability → Grafana Stack** (`dashboard/docs/observability/grafana.md`).
 
 ## File Runner
 

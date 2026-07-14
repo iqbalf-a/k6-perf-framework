@@ -13,6 +13,22 @@ const MODES = ['testhit', 'loadtest', 'stress', 'spike'];
 const cleanName = (s) => String(s || '').replace(/[^a-zA-Z0-9._-]/g, '');
 const cleanTag  = (s) => String(s || '').trim().replace(/[^a-zA-Z0-9._:-]/g, '');
 
+// Baca config Prometheus RW dari framework/observability/prometheus.env
+// (KEY=VALUE, satu sumber yang juga dipakai k6perf.cmd). Baris '#' = komentar.
+function loadPrometheusEnv(root) {
+  const out = {};
+  try {
+    const file = path.join(root, 'framework', 'observability', 'prometheus.env');
+    for (const line of fs.readFileSync(file, 'utf8').split(/\r?\n/)) {
+      const s = line.trim();
+      if (!s || s.startsWith('#')) continue;
+      const eq = s.indexOf('=');
+      if (eq > 0) out[s.slice(0, eq).trim()] = s.slice(eq + 1).trim();
+    }
+  } catch { /* file opsional — biar k6 yang lapor bila URL kosong */ }
+  return out;
+}
+
 // "k=v,k=v" → ['--tag','k=v', ...] (hanya pasangan valid)
 function parseTags(raw) {
   const args = [];
@@ -90,6 +106,7 @@ export function createRunnerRouter(root) {
     const csv        = String(req.query.csv) === 'true';
     const debug      = String(req.query.debug) === 'true';
     const webdash    = String(req.query.webdash) === 'true';
+    const prometheus = String(req.query.prometheus) === 'true';
 
     const scenPath = path.join(SCEN_DIR, `${scenario}.js`);
     if (!scenario || !scenPath.startsWith(SCEN_DIR + path.sep) || !fs.existsSync(scenPath)) {
@@ -119,7 +136,17 @@ export function createRunnerRouter(root) {
     }
     if (webdash) args.push('--out', 'web-dashboard');
     if (debug)   args.push('--http-debug=full');
+    if (prometheus) args.push('--out', 'experimental-prometheus-rw');
     args.push(scenPath);
+
+    // Env untuk child k6. Untuk Prometheus, default dibaca dari
+    // framework/observability/prometheus.env (env server yang sudah di-set menang).
+    const childEnv = { ...process.env };
+    if (prometheus) {
+      const cfg = loadPrometheusEnv(root);
+      if (!childEnv.K6_PROMETHEUS_RW_SERVER_URL && cfg.K6_PROMETHEUS_RW_SERVER_URL) childEnv.K6_PROMETHEUS_RW_SERVER_URL = cfg.K6_PROMETHEUS_RW_SERVER_URL;
+      if (!childEnv.K6_PROMETHEUS_RW_TREND_STATS && cfg.K6_PROMETHEUS_RW_TREND_STATS) childEnv.K6_PROMETHEUS_RW_TREND_STATS = cfg.K6_PROMETHEUS_RW_TREND_STATS;
+    }
 
     // Header SSE.
     res.setHeader('Content-Type', 'text/event-stream');
@@ -133,7 +160,7 @@ export function createRunnerRouter(root) {
 
     let child;
     try {
-      child = spawn(K6_BIN, args, { cwd: root }); // array args + tanpa shell → aman injeksi
+      child = spawn(K6_BIN, args, { cwd: root, env: childEnv }); // array args + tanpa shell → aman injeksi
     } catch (err) {
       send('error', { message: err.message });
       return res.end();
