@@ -1,34 +1,3 @@
-# ── Dependencies ──────────────────────────────────────────────────────────────
-node_modules/
-dashboard/dist/
-dashboard/public/docs/
-
-# ── k6 binary (portable) ──────────────────────────────────────────────────────
-# Binary disimpan di bin/ tapi tidak ikut di-commit (ukuran besar).
-bin/k6.exe
-bin/k6
-k6.exe
-k6
-
-# ── Script & scenario spesifik project ────────────────────────────────────────
-# Hanya template & contoh yang masuk repo. Script aktif per-project disimpan lokal.
-workspace/scripts/*/
-!workspace/scripts/_template/
-!workspace/scripts/_exampleChannel/
-
-workspace/scenarios/scenario_*.js
-!workspace/scenarios/scenario_template.js
-!workspace/scenarios/scenario_example.js
-
-# ── Hasil test ────────────────────────────────────────────────────────────────
-results/
-*.html
-report*.html
-!dashboard/**/*.html
-
-# ── Screenshot / scratch lokal ────────────────────────────────────────────────
-screenshots/
-
 # ── OS & editor ───────────────────────────────────────────────────────────────
 .DS_Store
 Thumbs.db
