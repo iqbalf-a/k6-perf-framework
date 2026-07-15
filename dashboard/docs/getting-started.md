@@ -51,6 +51,7 @@ Output yang diharapkan:
  VUs       : 1
  Iterations: 1
  Test ID   : scenario_example_testhit_...
+ Debug     : 0   CSV: 0   Dashboard: 0   Prometheus: 0
 ========================================
 ```
 
@@ -67,3 +68,4 @@ k6perf list
 - [Cara Run](./cara-run) — mode, parameter, dan contoh command
 - [Tambah BP Baru](./framework/tambah-bp) — buat script Business Process pertama
 - [k6 Dashboard](./observability/k6-dashboard) — visualisasi hasil test tanpa Grafana
+- [Grafana Stack](./observability/grafana) — kirim metric ke Prometheus + Grafana (flag `-Prometheus`)

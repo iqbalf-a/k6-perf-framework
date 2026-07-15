@@ -8,6 +8,7 @@ export default {
         sidebar:     'var(--sidebar)',
         surface:     'var(--surface)',
         'surface-2': 'var(--surface-2)',
+        input:       'var(--input)',
         code:        'var(--code)',
         border:      'var(--border)',
         'border-soft': 'var(--border-soft)',

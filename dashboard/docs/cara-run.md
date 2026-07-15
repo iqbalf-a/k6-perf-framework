@@ -25,6 +25,9 @@ k6perf run -Mode loadtest -Scenario scenario_myproject -Csv
 
 :: kombinasi dashboard + CSV
 k6perf run -Mode loadtest -Scenario scenario_myproject -Dashboard -Csv
+
+:: kirim metric real-time ke Prometheus/Grafana
+k6perf run -Mode loadtest -Scenario scenario_myproject -Prometheus
 ```
 
 > Ketik `k6perf` (tanpa ekstensi) — CMD otomatis memakai `k6perf.cmd`. Nama parameter tidak case-sensitive (`-Scenario` = `-scenario`).
@@ -40,6 +43,7 @@ k6perf run -Mode loadtest -Scenario scenario_myproject -Dashboard -Csv
 | `-Debug` | off | Aktifkan `--http-debug=full` |
 | `-Dashboard` | off | Aktifkan k6 web dashboard di `localhost:5665` |
 | `-Csv` | off | Export hasil ke `results\<testid>.csv` |
+| `-Prometheus` | off | Kirim metric via remote write ke Prometheus/Grafana (alias `-Prom`) |
 
 ## Mode
 

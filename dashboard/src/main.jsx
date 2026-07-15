@@ -25,21 +25,21 @@ import './index.css';
 const cx = (...a) => a.filter(Boolean).join(' ');
 
 /* ─── Reusable Tailwind class primitives ────────────────────────────────── */
-const MAIN      = 'p-7 overflow-auto';
-const PANEL     = 'bg-surface border border-border rounded-[10px] p-[18px]';
-const PANEL_H2  = 'm-0 mb-3 text-[13px] text-muted uppercase tracking-[.04em]';
-const INPUT     = 'w-full border border-border rounded-[7px] bg-surface-2 text-text py-[9px] px-3 font-sans text-[13.5px] normal-case focus:outline-none focus:border-accent';
-const SELECT    = 'w-full border border-border rounded-[7px] bg-surface-2 text-text py-2 px-2.5 font-sans text-[13.5px] normal-case focus:outline-none focus:border-accent';
-const TEXTAREA  = 'w-full min-h-[86px] resize-y border border-border rounded-[7px] bg-surface-2 text-text py-2.5 px-3 font-mono text-[13px] leading-[1.6] normal-case focus:outline-none focus:border-accent';
-const LABEL     = 'grid gap-1.5 text-muted text-[11px] uppercase';
+const MAIN      = 'px-10 py-9 overflow-auto max-[900px]:px-6 max-[900px]:py-7';
+const PANEL     = 'bg-surface border border-border rounded-xl p-6';
+const PANEL_H2  = 'm-0 mb-4 text-[14px] font-semibold text-head';
+const INPUT     = 'w-full border border-border rounded-lg bg-input text-text py-2.5 px-3.5 font-sans text-[13.5px] normal-case focus:outline-none focus:border-accent';
+const SELECT    = 'w-full border border-border rounded-lg bg-input text-text py-2.5 px-3 font-sans text-[13.5px] normal-case focus:outline-none focus:border-accent';
+const TEXTAREA  = 'w-full min-h-[86px] resize-y border border-border rounded-lg bg-input text-text py-2.5 px-3.5 font-mono text-[13px] leading-[1.6] normal-case focus:outline-none focus:border-accent';
+const LABEL     = 'grid gap-2 text-faint text-[10.5px] font-semibold uppercase tracking-[.1em]';
 const BTN_GRAD  = 'bg-accent-grad text-white font-semibold rounded-[7px] px-[18px] py-2.5 cursor-pointer border-0 disabled:opacity-55';
 const BTN_EXPORT= 'bg-transparent border border-border text-muted text-[10px] py-[3px] px-2 rounded cursor-pointer whitespace-nowrap hover:border-accent hover:text-accent';
-const SEARCH    = 'bg-surface-2 border border-border text-text py-[5px] px-2.5 rounded text-[12px] w-[200px] focus:outline-none focus:border-accent';
+const SEARCH    = 'bg-input border border-border text-text py-[5px] px-2.5 rounded text-[12px] w-[200px] focus:outline-none focus:border-accent';
 const TABLE_WRAP= 'max-h-[240px] overflow-auto scroll-thin [scrollbar-gutter:stable]';
 const TABLE     = 'w-full border-collapse text-[12px]';
 const TH        = 'th-sort py-2 px-2.5 border-b border-[rgba(60,60,67,.75)] text-left whitespace-nowrap text-muted font-semibold uppercase text-[10px] cursor-pointer';
 const TD        = 'py-2 px-2.5 border-b border-[rgba(60,60,67,.75)] text-left whitespace-nowrap';
-const CHART_GRID= 'grid grid-cols-2 gap-3.5 max-[900px]:grid-cols-1';
+const CHART_GRID= 'grid grid-cols-2 gap-5 max-[900px]:grid-cols-1';
 
 /* Render markdown and post-process headings to add id attributes */
 function renderMarkdown(md) {
@@ -169,13 +169,13 @@ function SunIcon() {
 /* ─── Sidebar — single grouped nav ──────────────────────────────────────── */
 function Sidebar({ route, go, theme, toggleTheme }) {
   const navBtn = (active) => cx(
-    'text-left rounded-lg px-[11px] py-[7px] text-[13.5px] cursor-pointer transition-colors',
+    'text-left rounded-lg px-3 py-2 text-[14px] cursor-pointer transition-colors',
     active ? 'text-head bg-surface-2 font-semibold' : 'text-muted hover:text-head hover:bg-border-soft'
   );
   return (
     <aside className="border-r border-border bg-sidebar px-5 py-[26px] flex flex-col gap-5 sticky top-0 h-screen overflow-y-auto scroll-thin max-[900px]:static max-[900px]:h-auto">
       <div className="flex items-center gap-3">
-        <span className="grid place-items-center w-9 h-9 rounded-[10px] bg-accent-grad text-white font-bold text-[15px] shrink-0 shadow-[0_0_14px_var(--accent-soft)]">k6</span>
+        <span className="grid place-items-center w-10 h-10 rounded-xl bg-accent-grad text-white font-bold text-[16px] shrink-0 shadow-[0_0_16px_var(--accent-soft)]">k6</span>
         <div className="leading-tight">
           <strong className="block text-[15px] font-bold tracking-[-.1px] text-head">k6 Framework</strong>
           <small className="block mt-0.5 text-[11px] uppercase tracking-[.08em] text-muted">Performance testing</small>
@@ -185,17 +185,17 @@ function Sidebar({ route, go, theme, toggleTheme }) {
       <nav className="grid gap-px">
         {NAV.map((group) => (
           <div key={group.title} className="grid gap-px">
-            <div className="px-[11px] pt-4 pb-1 text-[10.5px] font-bold uppercase tracking-[.09em] text-faint">{group.title}</div>
+            <div className="px-3 pt-5 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[.14em] text-faint">{group.title}</div>
             {group.items.map((it) => (
               <button key={it.id} className={navBtn(route === it.id)} onClick={() => go(it.id)}>{it.label}</button>
             ))}
           </div>
         ))}
 
-        <div className="px-[11px] pt-4 pb-1 text-[10.5px] font-bold uppercase tracking-[.09em] text-faint">Documentation</div>
+        <div className="px-3 pt-5 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[.14em] text-faint">Documentation</div>
         {DOCS_NAV.map((section) => (
           <div key={section.title} className="grid gap-px">
-            <div className="px-[11px] pt-2.5 pb-0.5 text-[12px] font-semibold text-head">{section.title}</div>
+            <div className="px-3 pt-3 pb-1 text-[12px] font-semibold text-head">{section.title}</div>
             {section.items.map((item) => (
               <button
                 key={item.path}
@@ -225,10 +225,10 @@ function Sidebar({ route, go, theme, toggleTheme }) {
 
 function PageHeader({ title, eyebrow, description }) {
   return (
-    <header className="max-w-[920px] mb-5">
-      <span className="text-accent-grad inline-block text-[10.5px] font-bold tracking-[.08em] uppercase">{eyebrow}</span>
-      <h1 className="mt-1.5 mb-2 text-[22px] font-bold tracking-[-.01em] text-head">{title}</h1>
-      <p className="m-0 max-w-[680px] text-muted text-[14.5px] leading-[1.65]">{description}</p>
+    <header className="max-w-[920px] mb-7">
+      <span className="inline-block text-[11px] font-semibold tracking-[.16em] uppercase text-faint">{eyebrow}</span>
+      <h1 className="mt-2 mb-3 text-[26px] font-bold tracking-[-.02em] text-head">{title}</h1>
+      <p className="m-0 max-w-[700px] text-muted text-[15px] leading-[1.7]">{description}</p>
     </header>
   );
 }
@@ -329,8 +329,8 @@ function RunnerPage({ go }) {
       <PageHeader eyebrow="Runner" title="Run Test"
         description="Pilih scenario, atur mode & VU, jalankan k6, dan lihat log real-time." />
 
-      <section className={cx(PANEL, 'grid gap-3.5 mb-3.5')}>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
+      <section className={cx(PANEL, 'grid gap-5 mb-5')}>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
           <label className={LABEL}>Scenario
             <select className={SELECT} value={form.scenario} onChange={(e) => set('scenario', e.target.value)}>
               {scenarios.length === 0 && <option value="">(tidak ada scenario)</option>}
@@ -356,7 +356,7 @@ function RunnerPage({ go }) {
           </label>
         </div>
 
-        <div className="flex flex-wrap gap-[18px]">
+        <div className="flex flex-wrap gap-6">
           <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.csv} onChange={(e) => set('csv', e.target.checked)} /> Export CSV</label>
           <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.debug} onChange={(e) => set('debug', e.target.checked)} /> Debug (http-debug)</label>
           <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.webdash} onChange={(e) => set('webdash', e.target.checked)} /> k6 web dashboard</label>
@@ -434,33 +434,36 @@ function HistoryPage({ onResult }) {
       <PageHeader eyebrow="Runner" title="Riwayat Run"
         description="Hasil CSV di folder results/. Klik 'Buka' untuk analisa di Results Dashboard." />
       {error && <div className="text-bad mb-3">{error}</div>}
-      <section className={cx(PANEL, 'overflow-auto')}>
-        <div className={TABLE_WRAP}>
-          <table className={TABLE}>
-            <thead><tr>
-              <th className={cx(TH, 'cursor-default')}>File</th>
-              <th className={cx(TH, 'cursor-default')}>Ukuran</th>
-              <th className={cx(TH, 'cursor-default')}>Waktu</th>
-              <th className={cx(TH, 'cursor-default')}></th>
-            </tr></thead>
-            <tbody>
-              {results === null && <tr><td className={TD} colSpan="4">Memuat…</td></tr>}
-              {results && results.length === 0 && <tr><td className={TD} colSpan="4">Belum ada hasil di results/.</td></tr>}
-              {results && results.map((it) => (
-                <tr key={it.name}>
-                  <td className={TD}>{it.name}</td>
-                  <td className={TD}>{it.sizeMB} MB</td>
-                  <td className={TD}><small className="text-muted">{new Date(it.mtime).toLocaleString()}</small></td>
-                  <td className={TD}>
-                    <button type="button" className={BTN_EXPORT} onClick={() => open(it)} disabled={busy === it.name}>
-                      {busy === it.name ? 'Membuka…' : 'Buka'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <section className={cx(PANEL, 'overflow-x-auto')}>
+        <table className="w-full border-collapse">
+          <thead><tr>
+            <th className="text-left text-[11px] font-semibold uppercase tracking-[.1em] text-faint py-3 px-4 border-b border-border whitespace-nowrap">File</th>
+            <th className="text-left text-[11px] font-semibold uppercase tracking-[.1em] text-faint py-3 px-4 border-b border-border whitespace-nowrap">Ukuran</th>
+            <th className="text-left text-[11px] font-semibold uppercase tracking-[.1em] text-faint py-3 px-4 border-b border-border whitespace-nowrap">Waktu</th>
+            <th className="text-right text-[11px] font-semibold uppercase tracking-[.1em] text-faint py-3 px-4 border-b border-border whitespace-nowrap"></th>
+          </tr></thead>
+          <tbody>
+            {results === null && <tr><td className="py-4 px-4 text-[14px] text-muted" colSpan="4">Memuat…</td></tr>}
+            {results && results.length === 0 && <tr><td className="py-4 px-4 text-[14px] text-muted" colSpan="4">Belum ada hasil di results/.</td></tr>}
+            {results && results.map((it) => (
+              <tr key={it.name} className="border-b border-border-soft last:border-b-0 hover:bg-border-soft/60 transition-colors">
+                <td className="py-4 px-4 text-[14px] text-text font-medium break-all">{it.name}</td>
+                <td className="py-4 px-4 text-[14px] text-muted whitespace-nowrap">{it.sizeMB} MB</td>
+                <td className="py-4 px-4 text-[13px] text-muted whitespace-nowrap">{new Date(it.mtime).toLocaleString()}</td>
+                <td className="py-4 px-4 text-right whitespace-nowrap">
+                  <button
+                    type="button"
+                    className="bg-transparent border border-border text-text text-[13px] font-medium py-1.5 px-4 rounded-lg cursor-pointer hover:border-accent hover:text-accent disabled:opacity-50 transition-colors"
+                    onClick={() => open(it)}
+                    disabled={busy === it.name}
+                  >
+                    {busy === it.name ? 'Membuka…' : 'Buka'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
     </>
   );
@@ -598,16 +601,16 @@ function DashboardPage({ onData }) {
         description="Muat file CSV hasil k6 untuk melihat metrik test secara visual — TPS/RPS, latency, checks, dan detail per transaksi & API."
       />
 
-      <section className={cx(PANEL, 'grid grid-cols-[minmax(240px,360px)_1fr] gap-3.5 mb-[18px] max-[900px]:grid-cols-1')}>
-        <div className="relative grid place-items-center gap-1.5 min-h-[120px] border border-dashed border-border rounded-lg bg-code text-center">
+      <section className={cx(PANEL, 'grid grid-cols-[minmax(240px,360px)_1fr] gap-5 mb-6 max-[900px]:grid-cols-1')}>
+        <div className="relative grid place-items-center gap-2 min-h-[140px] border border-dashed border-border rounded-lg bg-code text-center">
           <input
             type="file"
             accept=".csv"
             onChange={(event) => onUpload(event.target.files?.[0])}
             className="absolute inset-0 opacity-0 cursor-pointer"
           />
-          <strong className="text-accent">{loading ? 'Parsing CSV...' : 'Upload k6 CSV'}</strong>
-          <span className="text-muted text-[11px]">Atau gunakan Load via path untuk file besar.</span>
+          <strong className="text-head text-[15px]">{loading ? 'Parsing CSV...' : 'Upload k6 CSV'}</strong>
+          <span className="text-muted text-[12px]">Atau gunakan Load via path untuk file besar.</span>
         </div>
 
         <div className="grid grid-cols-[1fr_auto] content-center gap-2.5">
@@ -683,7 +686,7 @@ function InShellResults({ result: initialResult, onBack, onNewResult }) {
         )}
         <div className="flex items-center gap-2 ml-auto">
           <input
-            className="bg-surface-2 border border-border text-text py-[5px] px-2.5 rounded w-[320px] text-[12px] focus:outline-none focus:border-accent max-[900px]:w-[180px]"
+            className="bg-input border border-border text-text py-[5px] px-2.5 rounded w-[320px] text-[12px] focus:outline-none focus:border-accent max-[900px]:w-[180px]"
             value={path}
             placeholder="Load another path…"
             onChange={(e) => setPath(e.target.value)}
@@ -759,7 +762,7 @@ function TimeFilterBar({ durationMs, filterRange, onApply, onReset, onGranChange
     ? `${hh}h ${String(mm).padStart(2, '0')}m ${String(ss).padStart(2, '0')}s`
     : `${mm}m ${String(ss).padStart(2, '0')}s`;
 
-  const tfInput = 'bg-surface-2 border border-border text-text py-1 px-2 rounded-[5px] text-[12px] focus:outline-none focus:border-accent';
+  const tfInput = 'bg-input border border-border text-text py-1 px-2 rounded-[5px] text-[12px] focus:outline-none focus:border-accent';
   const tfBtn = 'bg-accent-grad text-white border-0 py-[5px] px-2.5 rounded-[5px] cursor-pointer font-semibold text-[11px] self-end';
   const tfReset = 'bg-transparent border border-border text-muted py-[5px] px-2.5 rounded-[5px] cursor-pointer text-[11px] self-end hover:border-accent hover:text-accent';
   const tfField = 'flex flex-col gap-[3px]';
@@ -830,8 +833,8 @@ function ResultsView({ data: baseData }) {
   );
 
   return (
-    <section className="grid gap-3.5">
-      <div className="flex items-center justify-between gap-3 flex-wrap border border-border rounded-lg bg-surface py-3.5 px-4">
+    <section className="grid gap-5">
+      <div className="flex items-center justify-between gap-3 flex-wrap border border-border rounded-xl bg-surface py-4 px-5">
         <div>
           <strong className="block text-head">{sc.testid || 'test result'}</strong>
           <span className="block mt-1 text-muted">{fmtN(filteredData.totalRows)} rows · {fmtDuration(durationMs)}</span>
@@ -849,7 +852,7 @@ function ResultsView({ data: baseData }) {
 
       {/* ── Section: Performance Overview ── */}
       <Section title="Performance Overview" defaultOpen={true}>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(160px,1fr))] gap-2.5">
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
           <StatCard label="Total Requests" value={fmtN(sc.totalReqs)} sub={`VUs max: ${sc.vusMax}`} />
           <StatCard label="Success" value={fmtN(sc.successReqs)} sub={`${successPct(sc)}% success`} tone="good" />
           <StatCard label="Errors" value={fmtN(sc.errorReqs)} sub={`${sc.errorPct}% error`} tone="bad" />
@@ -948,10 +951,10 @@ function ResultsView({ data: baseData }) {
 const TONE = { good: 'text-good', bad: 'text-bad', cyan: 'text-cyan', warn: 'text-warn', purple: 'text-purple', '': 'text-head' };
 function StatCard({ label, value, sub, tone = '' }) {
   return (
-    <div className="border border-border rounded-lg bg-surface p-3.5">
-      <span className="block text-muted text-[11px] uppercase tracking-wide">{label}</span>
-      <strong className={cx('block my-2 text-[22px] font-mono', TONE[tone] || 'text-head')}>{value}</strong>
-      <small className="block text-muted text-[11px]">{sub}</small>
+    <div className="border border-border rounded-xl bg-surface p-5">
+      <span className="block text-faint text-[10.5px] font-semibold uppercase tracking-[.1em]">{label}</span>
+      <strong className={cx('block mt-3 mb-1.5 text-[30px] font-mono font-semibold tracking-tight', TONE[tone] || 'text-head')}>{value}</strong>
+      <small className="block text-muted text-[12px]">{sub}</small>
     </div>
   );
 }
@@ -1448,7 +1451,7 @@ function FullApiTable({ rows }) {
           <select
             value={txFilter}
             onChange={(e) => setTxFilter(e.target.value)}
-            className="border border-border rounded-[7px] bg-surface-2 text-text py-1 px-2 text-[12px] focus:outline-none focus:border-accent"
+            className="border border-border rounded-[7px] bg-input text-text py-1 px-2 text-[12px] focus:outline-none focus:border-accent"
           >
             <option value="">All transactions</option>
             {txOptions.map((tx) => <option key={tx} value={tx}>{tx}</option>)}

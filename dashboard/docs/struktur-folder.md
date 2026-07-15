@@ -34,7 +34,8 @@ k6-perf-framework/
 │   │   ├── dateHelper.js         # today(), daysAgo(), year, dll
 │   │   └── jsonpath.js           # helper jsonpath
 │   └── observability/
-│       ├── loki.js
+│       ├── loki.js                  # pushLoki() — kirim log error ke Loki
+│       ├── prometheus.env           # config remote write (host & trend stats)
 │       ├── k6-perf-framework_grafana.json
 │       ├── k6-perf-framework_loki.yml
 │       └── k6-perf-framework_prometheus.yml
