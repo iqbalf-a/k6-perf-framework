@@ -10,8 +10,69 @@ import { spawn } from 'child_process';
 const MODES = ['testhit', 'loadtest', 'stress', 'spike'];
 
 // Buang karakter berbahaya (cegah path traversal & argumen liar).
-const cleanName = (s) => String(s || '').replace(/[^a-zA-Z0-9._-]/g, '');
-const cleanTag  = (s) => String(s || '').trim().replace(/[^a-zA-Z0-9._:-]/g, '');
+const cleanName  = (s) => String(s || '').replace(/[^a-zA-Z0-9._-]/g, '');
+const cleanTag   = (s) => String(s || '').trim().replace(/[^a-zA-Z0-9._:-]/g, '');
+const cleanIdent = (s) => String(s || '').replace(/[^a-zA-Z0-9_]/g, '');   // identifier fn JS
+const cleanBpName= (s) => String(s || '').replace(/[^a-zA-Z0-9_-]/g, '');  // nama BP di bpList
+
+// Generate isi file scenario dari struktur (imports + bpList + loadConfig + boilerplate).
+// Dipakai POST /api/scenarios/:name. Prediktif — sejalan dengan Scenario Generator.
+function generateScenarioSource(bps, loadConfig) {
+  const seen = new Set();
+  const imports = [];
+  for (const bp of bps) {
+    const key = `${bp.fn}|${bp.importPath}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    imports.push(`import { ${bp.fn} } from '${bp.importPath}';`);
+  }
+  const rows = bps.map((bp) => {
+    const alloc = bp.mode === 'percent' ? `percent: ${bp.value}` : `users: ${bp.value}`;
+    return `    { name: '${bp.name}', ${alloc}, fn: ${bp.fn}, thinkTime: ${bp.thinkTime} },`;
+  }).join('\n');
+
+  const lc = loadConfig || {};
+  const usesPercent = bps.some((bp) => bp.mode === 'percent');
+  const totalDefault = (lc.totalVus != null && Number(lc.totalVus) > 0) ? Number(lc.totalVus) : 100;
+
+  const lcLines = [
+    `    rampStep: ${lc.rampStep ?? 1},`,
+    `    rampInterval: ${lc.rampInterval ?? 1},`,
+    `    holdDuration: ${lc.holdDuration ?? 5},`,
+  ];
+  if (usesPercent || (lc.totalVus != null && Number(lc.totalVus) > 0)) {
+    lcLines.push(`    totalVus: ${totalDefault},`);
+  }
+
+  // Mode percent butuh distributeVus() untuk mengubah percent -> users absolut.
+  const fwImports = usesPercent
+    ? '{ MODE, createOptions, dispatchVu, setBpList, distributeVus }'
+    : '{ MODE, createOptions, dispatchVu, setBpList }';
+  const distributeLine = usesPercent
+    ? `\n// Ubah percent -> users absolut. Total dari -Vus (jika di-set) atau totalVus di atas.\ndistributeVus(bpList, parseInt(__ENV.VUS) || loadConfig.totalVus);`
+    : '';
+
+  return `// ─────────────────────────────────────────────────────────────────────────────
+// Scenario di-generate via dashboard (Run Test -> Setting Scenario).
+// Boleh diedit manual, tapi simpan ulang dari dashboard akan menimpa file ini.
+// ─────────────────────────────────────────────────────────────────────────────
+import ${fwImports} from '../../framework/index.js';
+
+${imports.join('\n')}
+
+const bpList = [
+${rows}
+];
+
+const loadConfig = {
+${lcLines.join('\n')}
+};
+
+setBpList(bpList);${distributeLine}
+export const options = createOptions(bpList, MODE, loadConfig);
+export default function () { dispatchVu(bpList, MODE); }
+`;
+}
 
 // Baca config Prometheus RW dari framework/observability/prometheus.env
 // (KEY=VALUE, satu sumber yang juga dipakai k6perf.cmd). Baris '#' = komentar.
@@ -62,6 +123,174 @@ export function createRunnerRouter(root) {
         .sort();
       res.json({ scenarios });
     } catch { res.json({ scenarios: [] }); }
+  });
+
+  // ── Parse bpList dari file scenario ────────────────────────────────────────
+  function parseScenarioFile(filePath) {
+    const content = fs.readFileSync(filePath, 'utf8');
+
+    // Extract bpList array contents
+    const bpListMatch = content.match(/const\s+bpList\s*=\s*\[([\s\S]*?)\];/);
+    if (!bpListMatch) return { bps: [], loadConfig: null };
+
+    // Map fn -> importPath dari statement import (untuk pre-fill & simpan balik)
+    const importMap = {};
+    const impRegex = /import\s*\{\s*([^}]+?)\s*\}\s*from\s*['"]([^'"]+)['"]/g;
+    let im;
+    while ((im = impRegex.exec(content)) !== null) {
+      im[1].split(',').forEach((raw) => {
+        const fn = raw.trim().split(/\s+as\s+/)[0].trim();
+        if (fn) importMap[fn] = im[2];
+      });
+    }
+
+    // Strip single-line comments before parsing
+    const bpListStr = bpListMatch[1].replace(/\/\/.*$/gm, '');
+
+    // Extract individual BP objects: { name, users|percent, fn, thinkTime }
+    const bpRegex = /\{\s*name:\s*['"]([^'"]+)['"]\s*,\s*(?:users:\s*(\d+)|percent:\s*(\d+))\s*,\s*fn:\s*(\w+)\s*(?:,\s*thinkTime:\s*(\d+))?\s*\}/g;
+    const bps = [];
+    let m;
+    while ((m = bpRegex.exec(bpListStr)) !== null) {
+      bps.push({
+        name: m[1],
+        users: m[2] ? parseInt(m[2]) : null,
+        percent: m[3] ? parseInt(m[3]) : null,
+        fn: m[4],
+        importPath: importMap[m[4]] || null,
+        thinkTime: m[5] ? parseInt(m[5]) : 0,
+      });
+    }
+
+    // Extract loadConfig
+    const loadConfigMatch = content.match(/const\s+loadConfig\s*=\s*\{([\s\S]*?)\};/);
+    let loadConfig = null;
+    if (loadConfigMatch) {
+      const lcStr = loadConfigMatch[1];
+      const getVal = (key) => {
+        const m = lcStr.match(new RegExp(`${key}\\s*:\\s*(\\d+)`));
+        return m ? parseInt(m[1]) : null;
+      };
+      loadConfig = {
+        rampStep: getVal('rampStep'),
+        rampInterval: getVal('rampInterval'),
+        holdDuration: getVal('holdDuration'),
+        totalVus: getVal('totalVus'),
+      };
+    }
+
+    return { bps, loadConfig };
+  }
+
+  // ── List scenario dengan detail bpList ─────────────────────────────────────
+  router.get('/api/scenarios/detail', (req, res) => {
+    try {
+      const files = fs.readdirSync(SCEN_DIR)
+        .filter((f) => f.endsWith('.js'))
+        .sort();
+      const scenarios = files.map((f) => {
+        const name = f.replace(/\.js$/, '');
+        const filePath = path.join(SCEN_DIR, f);
+        const { bps, loadConfig } = parseScenarioFile(filePath);
+        return { name, bps, loadConfig };
+      });
+      res.json({ scenarios });
+    } catch { res.json({ scenarios: [] }); }
+  });
+
+  // ── Katalog BP tersedia (fn + importPath) untuk "Tambah BP" ─────────────────
+  // Runnable BP = `export function Nama()` (params kosong); helper transaksi
+  // seperti Login(tx,data) otomatis terabaikan.
+  function buildBpCatalog() {
+    const catalog = [];
+    let channels;
+    try { channels = fs.readdirSync(SCRIPTS_DIR, { withFileTypes: true }); } catch { return catalog; }
+    for (const ch of channels) {
+      if (!ch.isDirectory()) continue;
+      const chDir = path.join(SCRIPTS_DIR, ch.name);
+      let bpDirs;
+      try { bpDirs = fs.readdirSync(chDir, { withFileTypes: true }); } catch { continue; }
+      for (const bp of bpDirs) {
+        if (!bp.isDirectory()) continue;
+        let files;
+        try { files = fs.readdirSync(path.join(chDir, bp.name)).filter((f) => f.endsWith('.js')); } catch { continue; }
+        for (const file of files) {
+          let content;
+          try { content = fs.readFileSync(path.join(chDir, bp.name, file), 'utf8'); } catch { continue; }
+          const m = content.match(/export\s+function\s+(\w+)\s*\(\s*\)/);
+          if (!m) continue;
+          catalog.push({
+            channel: ch.name,
+            bp: bp.name,
+            fn: m[1],
+            importPath: `../scripts/${ch.name}/${bp.name}/${file}`,
+          });
+        }
+      }
+    }
+    return catalog;
+  }
+
+  router.get('/api/bp-catalog', (req, res) => {
+    try { res.json({ catalog: buildBpCatalog() }); }
+    catch { res.json({ catalog: [] }); }
+  });
+
+  // ── Simpan / buat scenario (tulis file .js dari struktur) ────────────────────
+  router.post('/api/scenarios/:name', (req, res) => {
+    const name = cleanName(req.params.name);
+    if (!name) return res.status(400).json({ error: 'Nama scenario tidak valid' });
+    const filePath = path.join(SCEN_DIR, `${name}.js`);
+    if (!filePath.startsWith(SCEN_DIR + path.sep)) return res.status(400).json({ error: 'Path tidak valid' });
+
+    const body = req.body || {};
+    if (fs.existsSync(filePath) && body.overwrite !== true) {
+      return res.status(409).json({ error: `Scenario "${name}" sudah ada.` });
+    }
+
+    // Validasi BP terhadap katalog (cegah import sembarangan).
+    const known = new Set(buildBpCatalog().map((c) => `${c.fn}|${c.importPath}`));
+    const rawBps = Array.isArray(body.bps) ? body.bps : [];
+    if (rawBps.length === 0) return res.status(400).json({ error: 'Minimal 1 BP.' });
+
+    // Mode alokasi: scenario-level (frontend) atau per-BP (backward compat)
+    const scenarioMode = body.mode === 'percent' ? 'percent' : 'users';
+
+    const bps = [];
+    for (const b of rawBps) {
+      const bpName = cleanBpName(b.name);
+      const fn = cleanIdent(b.fn);
+      const importPath = String(b.importPath || '');
+      if (!bpName) return res.status(400).json({ error: 'Nama BP kosong.' });
+      if (!known.has(`${fn}|${importPath}`)) return res.status(400).json({ error: `BP tidak dikenal: ${fn}` });
+      // Gunakan mode per-BP bila ada, atau fallback ke scenario-level
+      const bpMode = b.mode === 'percent' ? 'percent' : scenarioMode;
+      // Nilai bisa datang sbg `value`, atau `percent`/`users` (payload frontend).
+      const rawVal = b.value != null ? b.value : (bpMode === 'percent' ? b.percent : b.users);
+      bps.push({
+        name: bpName,
+        fn,
+        importPath,
+        mode: bpMode,
+        value: Math.max(0, parseInt(rawVal) || 0),
+        thinkTime: Math.max(0, parseInt(b.thinkTime) || 0),
+      });
+    }
+
+    const lc = body.loadConfig || {};
+    const loadConfig = {
+      rampStep:     Math.max(0, parseInt(lc.rampStep) || 1),
+      rampInterval: Math.max(0, parseInt(lc.rampInterval) || 1),
+      holdDuration: Math.max(0, parseInt(lc.holdDuration) || 1),
+      totalVus:     (lc.totalVus != null && lc.totalVus !== '') ? Math.max(0, parseInt(lc.totalVus) || 0) : null,
+    };
+
+    try {
+      fs.writeFileSync(filePath, generateScenarioSource(bps, loadConfig), 'utf8');
+      res.json({ success: true, name });
+    } catch (err) {
+      res.status(500).json({ error: err.message });
+    }
   });
 
   // ── List script (channel → BP) ──────────────────────────────────────────────

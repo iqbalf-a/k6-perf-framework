@@ -27,19 +27,20 @@ const cx = (...a) => a.filter(Boolean).join(' ');
 /* ─── Reusable Tailwind class primitives ────────────────────────────────── */
 const MAIN      = 'px-10 py-9 overflow-auto max-[900px]:px-6 max-[900px]:py-7';
 const PANEL     = 'bg-surface border border-border rounded-xl p-6';
-const PANEL_H2  = 'm-0 mb-4 text-[14px] font-semibold text-head';
-const INPUT     = 'w-full border border-border rounded-lg bg-input text-text py-2.5 px-3.5 font-sans text-[13.5px] normal-case focus:outline-none focus:border-accent';
-const SELECT    = 'w-full border border-border rounded-lg bg-input text-text py-2.5 px-3 font-sans text-[13.5px] normal-case focus:outline-none focus:border-accent';
-const TEXTAREA  = 'w-full min-h-[86px] resize-y border border-border rounded-lg bg-input text-text py-2.5 px-3.5 font-mono text-[13px] leading-[1.6] normal-case focus:outline-none focus:border-accent';
-const LABEL     = 'grid gap-2 text-faint text-[10.5px] font-semibold uppercase tracking-[.1em]';
-const BTN_GRAD  = 'bg-accent-grad text-white font-semibold rounded-[7px] px-[18px] py-2.5 cursor-pointer border-0 disabled:opacity-55';
-const BTN_EXPORT= 'bg-transparent border border-border text-muted text-[10px] py-[3px] px-2 rounded cursor-pointer whitespace-nowrap hover:border-accent hover:text-accent';
-const SEARCH    = 'bg-input border border-border text-text py-[5px] px-2.5 rounded text-[12px] w-[200px] focus:outline-none focus:border-accent';
+const PANEL_H2  = 'm-0 mb-4 text-[13px] font-semibold text-head';
+const PANEL_H2R = 'm-0 text-[13px] font-semibold text-head';   // varian judul dalam 1 baris flex (tanpa margin-bawah)
+const INPUT     = 'w-full border border-border rounded-lg bg-input text-text py-2 px-3 font-sans text-[12.5px] normal-case focus:outline-none focus:border-accent';
+const SELECT    = 'w-full border border-border rounded-lg bg-input text-text py-2 px-2.5 font-sans text-[12.5px] normal-case focus:outline-none focus:border-accent';
+const TEXTAREA  = 'w-full min-h-[86px] resize-y border border-border rounded-lg bg-input text-text py-2 px-3 font-mono text-[12px] leading-[1.6] normal-case focus:outline-none focus:border-accent';
+const LABEL     = 'grid gap-1.5 text-faint text-[10px] font-semibold uppercase tracking-[.1em]';
+const BTN_GRAD  = 'bg-accent-grad text-white font-semibold rounded-[7px] px-4 py-2 cursor-pointer border-0 disabled:opacity-55';
+const BTN_EXPORT= 'bg-transparent border border-border text-muted text-[10px] py-[2px] px-1.5 rounded cursor-pointer whitespace-nowrap hover:border-accent hover:text-accent';
+const SEARCH    = 'bg-input border border-border text-text py-[4px] px-2 rounded text-[11px] w-[180px] focus:outline-none focus:border-accent';
 const TABLE_WRAP= 'max-h-[240px] overflow-auto scroll-thin [scrollbar-gutter:stable]';
-const TABLE     = 'w-full border-collapse text-[12px]';
-const TH        = 'th-sort py-2 px-2.5 border-b border-[rgba(60,60,67,.75)] text-left whitespace-nowrap text-muted font-semibold uppercase text-[10px] cursor-pointer';
-const TD        = 'py-2 px-2.5 border-b border-[rgba(60,60,67,.75)] text-left whitespace-nowrap';
-const CHART_GRID= 'grid grid-cols-2 gap-5 max-[900px]:grid-cols-1';
+const TABLE     = 'w-full border-collapse text-[11px]';
+const TH        = 'th-sort py-1.5 px-2 border-b border-[rgba(60,60,67,.75)] text-left whitespace-nowrap text-muted font-semibold uppercase text-[9.5px] cursor-pointer';
+const TD        = 'py-1.5 px-2 border-b border-[rgba(60,60,67,.75)] text-left whitespace-nowrap tabular-nums';
+const CHART_GRID= 'grid grid-cols-2 gap-4 max-[900px]:grid-cols-1';
 
 /* Render markdown and post-process headings to add id attributes */
 function renderMarkdown(md) {
@@ -169,33 +170,33 @@ function SunIcon() {
 /* ─── Sidebar — single grouped nav ──────────────────────────────────────── */
 function Sidebar({ route, go, theme, toggleTheme }) {
   const navBtn = (active) => cx(
-    'text-left rounded-lg px-3 py-2 text-[14px] cursor-pointer transition-colors',
+    'text-left rounded-lg px-2.5 py-1.5 text-[12.5px] cursor-pointer transition-colors',
     active ? 'text-head bg-surface-2 font-semibold' : 'text-muted hover:text-head hover:bg-border-soft'
   );
   return (
-    <aside className="border-r border-border bg-sidebar px-5 py-[26px] flex flex-col gap-5 sticky top-0 h-screen overflow-y-auto scroll-thin max-[900px]:static max-[900px]:h-auto">
-      <div className="flex items-center gap-3">
-        <span className="grid place-items-center w-10 h-10 rounded-xl bg-accent-grad text-white font-bold text-[16px] shrink-0 shadow-[0_0_16px_var(--accent-soft)]">k6</span>
+    <aside className="border-r border-border bg-sidebar px-4 py-5 flex flex-col gap-4 sticky top-0 h-screen overflow-y-auto scroll-thin max-[900px]:static max-[900px]:h-auto">
+      <div className="flex items-center gap-2.5">
+        <span className="grid place-items-center w-9 h-9 rounded-xl bg-accent-grad text-white font-bold text-[14px] shrink-0 shadow-[0_0_16px_var(--accent-soft)]">k6</span>
         <div className="leading-tight">
-          <strong className="block text-[15px] font-bold tracking-[-.1px] text-head">k6 Framework</strong>
-          <small className="block mt-0.5 text-[11px] uppercase tracking-[.08em] text-muted">Performance testing</small>
+          <strong className="block text-[13px] font-bold tracking-[-.1px] text-head">k6 Framework</strong>
+          <small className="block mt-0.5 text-[10px] uppercase tracking-[.08em] text-muted">Performance testing</small>
         </div>
       </div>
 
       <nav className="grid gap-px">
         {NAV.map((group) => (
           <div key={group.title} className="grid gap-px">
-            <div className="px-3 pt-5 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[.14em] text-faint">{group.title}</div>
+            <div className="px-2.5 pt-4 pb-1 text-[9.5px] font-semibold uppercase tracking-[.14em] text-faint">{group.title}</div>
             {group.items.map((it) => (
               <button key={it.id} className={navBtn(route === it.id)} onClick={() => go(it.id)}>{it.label}</button>
             ))}
           </div>
         ))}
 
-        <div className="px-3 pt-5 pb-1.5 text-[10.5px] font-semibold uppercase tracking-[.14em] text-faint">Documentation</div>
+        <div className="px-2.5 pt-4 pb-1 text-[9.5px] font-semibold uppercase tracking-[.14em] text-faint">Documentation</div>
         {DOCS_NAV.map((section) => (
           <div key={section.title} className="grid gap-px">
-            <div className="px-3 pt-3 pb-1 text-[12px] font-semibold text-head">{section.title}</div>
+            <div className="px-2.5 pt-2.5 pb-0.5 text-[11px] font-semibold text-head">{section.title}</div>
             {section.items.map((item) => (
               <button
                 key={item.path}
@@ -207,10 +208,10 @@ function Sidebar({ route, go, theme, toggleTheme }) {
         ))}
       </nav>
 
-      <div className="mt-auto pt-3.5 border-t border-border">
+      <div className="mt-auto pt-3 border-t border-border">
         <button
           onClick={toggleTheme}
-          className="w-full flex items-center justify-between rounded-lg px-[11px] py-2 text-[13px] text-muted cursor-pointer hover:bg-border-soft hover:text-head transition-colors"
+          className="w-full flex items-center justify-between rounded-lg px-2.5 py-1.5 text-[12px] text-muted cursor-pointer hover:bg-border-soft hover:text-head transition-colors"
         >
           <span className="flex items-center gap-2.5">
             {theme === 'dark' ? <MoonIcon /> : <SunIcon />}
@@ -225,10 +226,10 @@ function Sidebar({ route, go, theme, toggleTheme }) {
 
 function PageHeader({ title, eyebrow, description }) {
   return (
-    <header className="max-w-[920px] mb-7">
-      <span className="inline-block text-[11px] font-semibold tracking-[.16em] uppercase text-faint">{eyebrow}</span>
-      <h1 className="mt-2 mb-3 text-[26px] font-bold tracking-[-.02em] text-head">{title}</h1>
-      <p className="m-0 max-w-[700px] text-muted text-[15px] leading-[1.7]">{description}</p>
+    <header className="max-w-[920px] mb-6">
+      <span className="inline-block text-[10px] font-semibold tracking-[.16em] uppercase text-faint">{eyebrow}</span>
+      <h1 className="mt-1.5 mb-2 text-[22px] font-bold tracking-[-.02em] text-head">{title}</h1>
+      <p className="m-0 max-w-[700px] text-muted text-[13px] leading-[1.7]">{description}</p>
     </header>
   );
 }
@@ -255,9 +256,73 @@ function resolveDocLink(currentPath, href) {
   return baseDir ? `${baseDir}/${clean}` : clean;
 }
 
+// ─── SearchableSelect — dropdown dengan input search ──────────────────────
+// options: string[] atau { value, label }[]
+function SearchableSelect({ value, options, onChange, placeholder }) {
+  const [open, setOpen] = React.useState(false);
+  const [query, setQuery] = React.useState('');
+  const ref = React.useRef(null);
+
+  const isObj = options.length > 0 && typeof options[0] === 'object';
+  const getLabel = (o) => isObj ? o.label : o;
+  const getValue = (o) => isObj ? o.value : o;
+
+  const filtered = options.filter((o) => {
+    const label = getLabel(o).toLowerCase();
+    return !query || label.includes(query.toLowerCase());
+  });
+
+  const displayValue = (() => {
+    if (!value) return '';
+    const found = options.find((o) => getValue(o) === value);
+    return found ? getLabel(found) : value;
+  })();
+
+  React.useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  return (
+    <div ref={ref} className="relative">
+      <input
+        className={INPUT}
+        value={open ? query : displayValue}
+        placeholder={placeholder || 'Pilih…'}
+        onFocus={() => { setOpen(true); setQuery(''); }}
+        onChange={(e) => { setQuery(e.target.value); setOpen(true); }}
+        readOnly={!open}
+      />
+      {open && (
+        <div className="absolute z-50 mt-1 w-full max-h-[200px] overflow-auto rounded-lg border border-border bg-surface shadow-lg scroll-thin">
+          {filtered.length === 0 && <div className="py-2 px-3.5 text-[12px] text-muted">Tidak ditemukan</div>}
+          {filtered.map((o) => {
+            const v = getValue(o);
+            const l = getLabel(o);
+            return (
+              <div
+                key={v}
+                className={cx(
+                  'py-2 px-3.5 text-[13px] cursor-pointer hover:bg-accent-soft transition-colors',
+                  v === value ? 'text-accent font-semibold bg-accent-soft/50' : 'text-text'
+                )}
+                onMouseDown={() => { onChange(v); setOpen(false); setQuery(''); }}
+              >
+                {l}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Run Test — jalankan scenario, log real-time via SSE ────────────────────
 function RunnerPage({ go }) {
   const [scenarios, setScenarios] = React.useState([]);
+  const [scenarioDetails, setScenarioDetails] = React.useState({});
   const [form, setForm] = React.useState({
     scenario: '', mode: 'testhit', vus: 1, iterations: 1,
     csv: true, debug: false, webdash: false, prometheus: false, tags: '',
@@ -269,14 +334,25 @@ function RunnerPage({ go }) {
   const startedRef = React.useRef(false);
   const logRef = React.useRef(null);
 
-  React.useEffect(() => {
-    fetch('/api/scenarios').then((r) => r.json()).then((d) => {
-      const list = d.scenarios || [];
+  const loadScenarios = React.useCallback((selectName) => {
+    fetch('/api/scenarios/detail').then((r) => r.json()).then((d) => {
+      const arr = d.scenarios || [];
+      const list = arr.map((s) => s.name);
       setScenarios(list);
-      setForm((f) => (f.scenario ? f : { ...f, scenario: list[0] || '' }));
+      const details = {};
+      arr.forEach((s) => { details[s.name] = s; });
+      setScenarioDetails(details);
+      setForm((f) => {
+        if (selectName && list.includes(selectName)) return { ...f, scenario: selectName };
+        return f.scenario ? f : { ...f, scenario: list[0] || '' };
+      });
     }).catch(() => {});
-    return () => esRef.current?.close();
   }, []);
+
+  React.useEffect(() => {
+    loadScenarios();
+    return () => esRef.current?.close();
+  }, [loadScenarios]);
 
   React.useEffect(() => {
     if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
@@ -284,6 +360,15 @@ function RunnerPage({ go }) {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const append = (text) => setLogLines((prev) => [...prev, text]);
+
+  // Detect if current scenario is percentage mode
+  const currentDetail = scenarioDetails[form.scenario];
+  const currentBps = currentDetail?.bps || [];
+  const isPercentMode = currentBps.length > 0 && currentBps.every((bp) => bp.percent != null && bp.users == null);
+
+  // Mode-specific field visibility
+  const showVus = form.mode === 'loadtest';
+  const showIterations = form.mode === 'testhit';
 
   const run = () => {
     if (!form.scenario || status === 'running') return;
@@ -327,57 +412,339 @@ function RunnerPage({ go }) {
   return (
     <>
       <PageHeader eyebrow="Runner" title="Run Test"
-        description="Pilih scenario, atur mode & VU, jalankan k6, dan lihat log real-time." />
+        description="Pilih scenario, atur mode, jalankan k6, dan lihat log real-time." />
 
-      <section className={cx(PANEL, 'grid gap-5 mb-5')}>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-4">
+      <section className={cx(PANEL, 'grid gap-4 mb-4')}>
+        <div className="grid grid-cols-[repeat(auto-fit,minmax(180px,1fr))] gap-3">
           <label className={LABEL}>Scenario
-            <select className={SELECT} value={form.scenario} onChange={(e) => set('scenario', e.target.value)}>
-              {scenarios.length === 0 && <option value="">(tidak ada scenario)</option>}
-              {scenarios.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
+            <SearchableSelect
+              value={form.scenario}
+              options={scenarios}
+              onChange={(v) => set('scenario', v)}
+              placeholder="(pilih scenario)"
+            />
           </label>
           <label className={LABEL}>Mode
             <select className={SELECT} value={form.mode} onChange={(e) => set('mode', e.target.value)}>
               <option value="testhit">testhit</option>
               <option value="loadtest">loadtest</option>
-              <option value="stress">stress</option>
-              <option value="spike">spike</option>
+              <option value="stress" disabled>stress (coming soon)</option>
+              <option value="spike" disabled>spike (coming soon)</option>
             </select>
           </label>
-          <label className={LABEL}>VUs / Total VU
-            <input className={INPUT} type="number" min="1" value={form.vus} onChange={(e) => set('vus', e.target.value)} />
-          </label>
-          <label className={LABEL}>Iterations
-            <input className={INPUT} type="number" min="1" value={form.iterations} onChange={(e) => set('iterations', e.target.value)} />
-          </label>
+          {showVus && (
+            <label className={LABEL}>{isPercentMode ? 'Total VUs' : 'VUs'}
+              <input className={INPUT} type="number" min="1" value={form.vus} onChange={(e) => set('vus', e.target.value)} />
+            </label>
+          )}
+          {showIterations && (
+            <label className={LABEL}>Iterations
+              <input className={INPUT} type="number" min="1" value={form.iterations} onChange={(e) => set('iterations', e.target.value)} />
+            </label>
+          )}
           <label className={LABEL}>Tags (k=v,k=v)
             <input className={INPUT} value={form.tags} placeholder="env=staging,build=123" onChange={(e) => set('tags', e.target.value)} />
           </label>
         </div>
 
-        <div className="flex flex-wrap gap-6">
-          <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.csv} onChange={(e) => set('csv', e.target.checked)} /> Export CSV</label>
-          <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.debug} onChange={(e) => set('debug', e.target.checked)} /> Debug (http-debug)</label>
-          <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.webdash} onChange={(e) => set('webdash', e.target.checked)} /> k6 web dashboard</label>
-          <label className="flex items-center gap-2 normal-case text-[13px] text-text cursor-pointer" title="Kirim metric via remote write ke Prometheus/Grafana (default localhost:9090)"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.prometheus} onChange={(e) => set('prometheus', e.target.checked)} /> Prometheus (Grafana)</label>
+        <div className="flex flex-wrap gap-5">
+          <label className="flex items-center gap-1.5 normal-case text-[12px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.csv} onChange={(e) => set('csv', e.target.checked)} /> Export CSV</label>
+          <label className="flex items-center gap-1.5 normal-case text-[12px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.debug} onChange={(e) => set('debug', e.target.checked)} /> Debug (http-debug)</label>
+          <label className="flex items-center gap-1.5 normal-case text-[12px] text-text cursor-pointer"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.webdash} onChange={(e) => set('webdash', e.target.checked)} /> k6 web dashboard</label>
+          <label className="flex items-center gap-1.5 normal-case text-[12px] text-text cursor-pointer" title="Kirim metric via remote write ke Prometheus/Grafana (default localhost:9090)"><input type="checkbox" className="w-auto m-0 accent-accent" checked={form.prometheus} onChange={(e) => set('prometheus', e.target.checked)} /> Prometheus (Grafana)</label>
         </div>
 
-        <div className="flex items-center gap-3.5 flex-wrap">
+        <div className="flex items-center gap-3 flex-wrap">
           {status !== 'running'
-            ? <button type="button" className={cx(BTN_GRAD, 'text-[14px] px-5 py-[9px] disabled:cursor-not-allowed')} onClick={run} disabled={!form.scenario}>▶ Run</button>
-            : <button type="button" className="bg-bad text-white font-semibold rounded-lg text-[14px] px-5 py-[9px] cursor-pointer border-0" onClick={stop}>■ Stop</button>}
-          <span className={cx('text-[12px]', statusColor)}>{statusLabel}</span>
+            ? <button type="button" className={cx(BTN_GRAD, 'text-[12px] px-3.5 py-[6px] disabled:cursor-not-allowed')} onClick={run} disabled={!form.scenario}>▶ Run</button>
+            : <button type="button" className="bg-bad text-white font-semibold rounded-lg text-[12px] px-3.5 py-[6px] cursor-pointer border-0" onClick={stop}>■ Stop</button>}
+          <span className={cx('text-[11px]', statusColor)}>{statusLabel}</span>
           {lastCsv && status !== 'running' && (
-            <button type="button" className="bg-transparent border border-border text-muted py-1.5 px-3 rounded-md cursor-pointer text-[12px] hover:border-accent hover:text-accent" onClick={() => go('results')}>CSV: {lastCsv} · buka Riwayat →</button>
+            <button type="button" className="bg-transparent border border-border text-muted py-0.5 px-2 rounded-md cursor-pointer text-[10px] hover:border-accent hover:text-accent" onClick={() => go('results')}>CSV: {lastCsv} → Riwayat</button>
           )}
         </div>
       </section>
 
+      {/* ── Scenario Settings ── */}
+      {form.scenario && scenarioDetails[form.scenario] && (
+        <ScenarioSettings
+          detail={scenarioDetails[form.scenario]}
+          formVus={form.vus}
+          onSaved={(name) => loadScenarios(name)}
+        />
+      )}
+
       <section className={cx(PANEL, 'p-0 overflow-hidden')}>
-        <pre ref={logRef} className="m-0 py-4 px-[18px] bg-code text-text font-mono text-[12.5px] leading-[1.6] whitespace-pre-wrap break-words overflow-auto max-h-[58vh] min-h-[240px] scroll-thin">{logLines.join('') || 'Log k6 tampil di sini saat test berjalan…'}</pre>
+        <pre ref={logRef} className="m-0 py-3 px-4 bg-code text-text font-mono text-[11.5px] leading-[1.55] whitespace-pre-wrap break-words overflow-auto max-h-[58vh] min-h-[200px] scroll-thin">{logLines.join('') || 'Log k6 tampil di sini saat test berjalan…'}</pre>
       </section>
     </>
+  );
+}
+
+// ─── ScenarioSettings — lihat & edit setting scenario (users/percent per BP,
+//     tambah/hapus BP, loadConfig), simpan / simpan sebagai baru ────────────
+function ScenarioSettings({ detail, formVus, onSaved }) {
+  const [editing, setEditing] = React.useState(false);
+  const [catalog, setCatalog] = React.useState([]);
+  const [bps, setBps] = React.useState([]);
+  const [mode, setMode] = React.useState('users'); // 'users' | 'percent' — 1x untuk semua BP
+  const [lc, setLc] = React.useState({ rampStep: 1, rampInterval: 1, holdDuration: 5, totalVus: '' });
+  const [saveAs, setSaveAs] = React.useState('');
+  const [saving, setSaving] = React.useState(false);
+  const [msg, setMsg] = React.useState(null); // { type:'good'|'bad', text }
+
+  const fIn  = 'w-full border border-border rounded-lg bg-input text-text py-1.5 px-2.5 text-[13px] normal-case focus:outline-none focus:border-accent';
+
+  React.useEffect(() => {
+    fetch('/api/bp-catalog').then((r) => r.json()).then((d) => setCatalog(d.catalog || [])).catch(() => {});
+  }, []);
+
+  const initFromDetail = React.useCallback(() => {
+    const detectedMode = (detail.bps || []).some((b) => b.percent != null) ? 'percent' : 'users';
+    setMode(detectedMode);
+    setBps((detail.bps || []).map((b) => ({
+      key: crypto.randomUUID(),
+      name: b.name,
+      fn: b.fn || '',
+      importPath: b.importPath || '',
+      value: detectedMode === 'percent' ? (b.percent ?? 50) : (b.users ?? 1),
+      thinkTime: b.thinkTime ?? 0,
+    })));
+    const l = detail.loadConfig || {};
+    setLc({
+      rampStep: l.rampStep ?? 1,
+      rampInterval: l.rampInterval ?? 1,
+      holdDuration: l.holdDuration ?? 5,
+      totalVus: l.totalVus ?? '',
+    });
+    setSaveAs(''); setMsg(null);
+  }, [detail]);
+
+  // Scenario berganti → keluar edit & reset pesan
+  React.useEffect(() => { setEditing(false); setMsg(null); }, [detail.name]);
+
+  const startEdit = () => { initFromDetail(); setEditing(true); };
+
+  const toggleMode = () => {
+    setMode((prev) => {
+      const next = prev === 'users' ? 'percent' : 'users';
+      setBps((cur) => cur.map((b) => ({
+        ...b,
+        value: next === 'percent' ? Math.min(100, Math.round((Number(b.value) || 1) / (cur.reduce((s, x) => s + (Number(x.value) || 0), 0) || 1) * 100)) : 1,
+      })));
+      return next;
+    });
+  };
+
+  const setBp = (key, patch) => setBps((cur) => cur.map((b) => (b.key === key ? { ...b, ...patch } : b)));
+  const removeBp = (key) => setBps((cur) => cur.filter((b) => b.key !== key));
+  const addBp = () => {
+    const c = catalog[0];
+    setBps((cur) => [...cur, {
+      key: crypto.randomUUID(),
+      name: c ? c.bp : 'BP_baru',
+      fn: c ? c.fn : '', importPath: c ? c.importPath : '',
+      value: mode === 'percent' ? 50 : 1,
+      thinkTime: 1,
+    }]);
+  };
+  const pickBp = (key, combo) => {
+    const c = catalog.find((x) => `${x.fn}|${x.importPath}` === combo);
+    if (c) setBp(key, { fn: c.fn, importPath: c.importPath, name: c.bp });
+  };
+
+  const save = async (targetName, overwrite) => {
+    if (!targetName) { setMsg({ type: 'bad', text: 'Nama scenario kosong.' }); return; }
+    if (bps.length === 0) { setMsg({ type: 'bad', text: 'Minimal 1 BP.' }); return; }
+    if (bps.some((b) => !b.fn || !b.importPath)) { setMsg({ type: 'bad', text: 'Ada BP yang belum dipilih.' }); return; }
+    setSaving(true); setMsg(null);
+    try {
+      const r = await fetch(`/api/scenarios/${encodeURIComponent(targetName)}`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          overwrite,
+          mode, // scenario-level mode
+          bps: bps.map((b) => ({
+            name: b.name, fn: b.fn, importPath: b.importPath,
+            ...(mode === 'percent' ? { percent: b.value } : { users: b.value }),
+            thinkTime: b.thinkTime,
+          })),
+          loadConfig: lc,
+        }),
+      });
+      const j = await r.json();
+      if (!j.success) throw new Error(j.error || 'Gagal menyimpan');
+      setMsg({ type: 'good', text: `Tersimpan: ${j.name}.js` });
+      setEditing(false);
+      onSaved?.(j.name);
+    } catch (e) {
+      setMsg({ type: 'bad', text: e.message });
+    } finally { setSaving(false); }
+  };
+
+  // ── View mode: breakdown ──
+  if (!editing) {
+    const bpsV = detail.bps || [];
+    const totalUsers = bpsV.reduce((s, bp) => s + (bp.users || 0), 0);
+    const totalPercent = bpsV.reduce((s, bp) => s + (bp.percent || 0), 0);
+    const isPercentMode = totalPercent > 0 && totalUsers === 0;
+    // Total VU utk hitung percent: totalVus scenario (kalau ada), else form VUs.
+    const cfgTotal = detail.loadConfig?.totalVus;
+    const pctTotal = (cfgTotal && cfgTotal > 0) ? cfgTotal : (Number(formVus) || 0);
+    const bpColors = ['#22d3ee','#39d98a','#ffaa3b','#a78bfa','#f472b6','#fb923c','#34d399','#60a5fa'];
+    return (
+      <section className={cx(PANEL, 'mb-5')}>
+        <div className="flex items-center gap-2.5 mb-3 flex-wrap">
+          <h2 className={PANEL_H2R}>Scenario: {detail.name}</h2>
+          {bpsV.length > 0 && (
+            <span className={cx('text-[10px] font-semibold py-0.5 px-2 rounded-full uppercase tracking-wide',
+              isPercentMode ? 'bg-accent-soft text-accent' : 'bg-border text-muted')}>
+              {isPercentMode ? 'Persentase' : 'Absolut'}
+            </span>
+          )}
+          <button type="button" onClick={startEdit}
+            className="ml-auto bg-transparent border border-border text-text text-[11px] font-medium py-1 px-3 rounded-lg cursor-pointer hover:border-accent hover:text-accent transition-colors">
+Edit scenario
+          </button>
+        </div>
+        {bpsV.length === 0 ? (
+          <p className="text-muted text-[12px]">Scenario ini belum terbaca BP-nya. Klik <strong className="text-text">Edit scenario</strong> untuk mengatur.</p>
+        ) : (<>
+          <div className="grid gap-2 mb-3">
+            {bpsV.map((bp) => {
+              const calc = isPercentMode ? Math.round((bp.percent || 0) / 100 * pctTotal) : bp.users;
+              return (
+                <div key={bp.name} className="flex items-center justify-between gap-3 border border-border rounded-lg bg-surface-2 py-2 px-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <strong className="text-[12px] text-accent font-mono truncate">{bp.name}</strong>
+                    {bp.thinkTime > 0 && <span className="text-[9px] text-muted bg-border py-px px-1 rounded shrink-0">think: {bp.thinkTime}s</span>}
+                  </div>
+                  <div className="flex items-baseline gap-1.5 shrink-0">
+                    {isPercentMode && <span className="text-[10px] text-faint mr-1">{bp.percent}%</span>}
+                    <span className="text-[20px] font-mono font-bold text-head leading-none tabular-nums">{calc}</span>
+                    <span className="text-[10px] text-muted uppercase tracking-wide">VUs</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {isPercentMode && (
+            <div className="mb-3 flex h-5 rounded-full overflow-hidden border border-border">
+              {bpsV.map((bp, i) => (
+                <div key={bp.name} className="flex items-center justify-center text-[10px] font-semibold text-white/90"
+                  style={{ width: `${bp.percent || 0}%`, background: bpColors[i % bpColors.length] }}
+                  title={`${bp.name}: ${bp.percent}%`}>
+                  {(bp.percent || 0) >= 10 && `${bp.percent}%`}
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="flex flex-wrap gap-4 text-[11px] text-muted">
+            {isPercentMode
+              ? <span>Total VUs: <strong className="text-text font-mono">{pctTotal}</strong> <span className="text-faint">({cfgTotal > 0 ? 'dari totalVus' : 'dari form'})</span></span>
+              : totalUsers > 0 && <span>Total VUs: <strong className="text-text font-mono">{totalUsers}</strong></span>}
+            {isPercentMode && <span>Total Persentase: <strong className={cx(totalPercent === 100 ? 'text-good' : 'text-warn', 'font-mono')}>{totalPercent}%</strong>{totalPercent !== 100 && <span className="text-warn ml-1">(sebaiknya 100%)</span>}</span>}
+            {detail.loadConfig?.rampStep != null && <span>Ramp: +{detail.loadConfig.rampStep} VUs / {detail.loadConfig.rampInterval || 1} min</span>}
+            {detail.loadConfig?.holdDuration != null && <span>Hold: {detail.loadConfig.holdDuration} min</span>}
+          </div>
+        </>)}
+        {msg && <div className={cx('mt-3 text-[12px]', msg.type === 'good' ? 'text-good' : 'text-bad')}>{msg.text}</div>}
+      </section>
+    );
+  }
+
+  // ── Edit mode: form ──
+  const usesPercent = mode === 'percent';
+  const totalPercentEdit = usesPercent ? bps.reduce((s, b) => s + (Number(b.value) || 0), 0) : 0;
+  return (
+    <section className={cx(PANEL, 'mb-4')}>
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <h2 className={PANEL_H2R}>Edit Setting — {detail.name}</h2>
+        <button type="button" onClick={() => { setEditing(false); setMsg(null); }}
+          className="ml-auto bg-transparent border border-border text-muted text-[11px] py-1 px-3 rounded-lg cursor-pointer hover:border-accent hover:text-accent transition-colors">
+          Batal
+        </button>
+      </div>
+
+      {/* Mode toggle — 1x untuk semua BP */}
+      <div className="flex items-center gap-2.5 mb-3 pb-2.5 border-b border-border">
+        <span className="text-[9.5px] font-semibold uppercase tracking-[.1em] text-faint">Alokasi</span>
+        <button type="button" onClick={toggleMode}
+          className={cx(
+            'relative inline-flex h-5 w-[96px] items-center rounded-full border-0 cursor-pointer transition-colors',
+            usesPercent ? 'bg-accent' : 'bg-border'
+          )}>
+          <span className={cx(
+            'absolute h-4 w-[44px] rounded-full bg-white shadow transition-transform',
+            usesPercent ? 'translate-x-[48px]' : 'translate-x-[1px]'
+          )} />
+          <span className="relative z-10 w-1/2 text-center text-[10px] font-semibold"
+            style={{ color: usesPercent ? 'rgba(255,255,255,.7)' : 'var(--head)' }}>
+            Absolut
+          </span>
+          <span className="relative z-10 w-1/2 text-center text-[10px] font-semibold"
+            style={{ color: usesPercent ? 'var(--head)' : 'rgba(255,255,255,.7)' }}>
+            %
+          </span>
+        </button>
+        <span className={cx(
+          'text-[9px] font-semibold py-0.5 px-1.5 rounded-full uppercase tracking-wide',
+          usesPercent ? 'bg-accent-soft text-accent' : 'bg-border text-muted'
+        )}>
+          {usesPercent ? 'Persentase' : 'Absolut'}
+        </span>
+        {usesPercent && (
+          <span className={cx('text-[11px] font-mono', totalPercentEdit === 100 ? 'text-good' : 'text-warn')}>
+            Total: {totalPercentEdit}%{totalPercentEdit !== 100 && ' (sebaiknya 100%)'}
+          </span>
+        )}
+      </div>
+
+      <div className="grid gap-2 mb-3">
+        <div className="hidden md:grid grid-cols-[1.7fr_0.9fr_0.9fr_auto] gap-2 text-[9px] font-semibold uppercase tracking-[.08em] text-faint px-1">
+          <span>BP (fn)</span><span>{usesPercent ? 'Alokasi (%)' : 'Alokasi (Users)'}</span><span>Think (s)</span><span></span>
+        </div>
+        {bps.map((b) => (
+          <div key={b.key} className="grid grid-cols-1 md:grid-cols-[1.7fr_0.9fr_0.9fr_auto] gap-2 md:items-center border border-border rounded-lg bg-surface-2 p-2">
+            <SearchableSelect
+              value={`${b.fn}|${b.importPath}`}
+              options={catalog.map((c) => ({ value: `${c.fn}|${c.importPath}`, label: `${c.channel}/${c.bp} · ${c.fn}` }))}
+              onChange={(v) => pickBp(b.key, v)}
+              placeholder="Pilih BP…"
+            />
+            <div className="relative">
+              <input className={cx(fIn, usesPercent && 'pr-6')} type="number" min="0" value={b.value}
+                placeholder={usesPercent ? '%' : 'users'}
+                onChange={(e) => setBp(b.key, { value: e.target.value === '' ? 0 : (parseInt(e.target.value) || 0) })} />
+              {usesPercent && <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[11px] text-faint pointer-events-none">%</span>}
+            </div>
+            <input className={fIn} type="number" min="0" value={b.thinkTime} placeholder="think(s)"
+              onChange={(e) => setBp(b.key, { thinkTime: e.target.value === '' ? 0 : (parseInt(e.target.value) || 0) })} />
+            <button type="button" onClick={() => removeBp(b.key)}
+              className="justify-self-end bg-transparent border border-bad text-bad text-[11px] py-1.5 px-2.5 rounded-lg cursor-pointer hover:bg-bad/10">Hapus</button>
+          </div>
+        ))}
+        <button type="button" onClick={addBp} disabled={catalog.length === 0}
+          className="w-fit bg-transparent border border-accent text-accent text-[12px] py-1.5 px-3.5 rounded-lg cursor-pointer hover:bg-accent-soft disabled:opacity-50">+ Tambah BP</button>
+      </div>
+
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(120px,1fr))] gap-2.5 mb-3">
+        <label className={LABEL}>Ramp Step<input className={INPUT} type="number" min="0" value={lc.rampStep} onChange={(e) => setLc((v) => ({ ...v, rampStep: e.target.value }))} /></label>
+        <label className={LABEL}>Ramp Interval (min)<input className={INPUT} type="number" min="0" value={lc.rampInterval} onChange={(e) => setLc((v) => ({ ...v, rampInterval: e.target.value }))} /></label>
+        <label className={LABEL}>Hold Duration (min)<input className={INPUT} type="number" min="0" value={lc.holdDuration} onChange={(e) => setLc((v) => ({ ...v, holdDuration: e.target.value }))} /></label>
+        <label className={cx(LABEL, !usesPercent && 'opacity-50')}>Total VUs {usesPercent ? '' : '(percent saja)'}<input className={INPUT} type="number" min="0" value={lc.totalVus} onChange={(e) => setLc((v) => ({ ...v, totalVus: e.target.value }))} placeholder="—" /></label>
+      </div>
+
+      <div className="flex items-center gap-2.5 flex-wrap border-t border-border pt-3">
+        <button type="button" onClick={() => save(detail.name, true)} disabled={saving}
+          className={cx(BTN_GRAD, 'text-[12px] px-3.5 py-1.5')}>{saving ? 'Menyimpan…' : 'Simpan'}</button>
+        <span className="w-px h-5 bg-border" />
+        <input className={cx(INPUT, 'w-[180px]')} value={saveAs} onChange={(e) => setSaveAs(e.target.value)} placeholder="nama_scenario_baru" />
+        <button type="button" onClick={() => save(saveAs.trim(), false)} disabled={saving || !saveAs.trim()}
+          className="bg-transparent border border-accent text-accent text-[12px] font-medium py-1.5 px-3.5 rounded-lg cursor-pointer hover:bg-accent-soft disabled:opacity-50">Simpan sebagai baru</button>
+        {msg && <span className={cx('text-[11px]', msg.type === 'good' ? 'text-good' : 'text-bad')}>{msg.text}</span>}
+      </div>
+    </section>
   );
 }
 
@@ -391,14 +758,14 @@ function ScriptsPage() {
     <>
       <PageHeader eyebrow="Workspace" title="Scripts"
         description="Daftar channel & Business Process di workspace/scripts." />
-      {channels === null && <section className={PANEL}><p className="text-muted leading-relaxed">Memuat…</p></section>}
-      {channels && channels.length === 0 && <section className={PANEL}><p className="text-muted leading-relaxed">Belum ada channel di workspace/scripts.</p></section>}
+      {channels === null && <section className={PANEL}><p className="text-[12px] text-muted leading-relaxed">Memuat…</p></section>}
+      {channels && channels.length === 0 && <section className={PANEL}><p className="text-[12px] text-muted leading-relaxed">Belum ada channel di workspace/scripts.</p></section>}
       {channels && channels.map((ch) => (
-        <section className={cx(PANEL, 'mb-3')} key={ch.channel}>
+        <section className={cx(PANEL, 'mb-2.5')} key={ch.channel}>
           <h2 className={PANEL_H2}>{ch.channel}</h2>
           {ch.bps.length === 0
-            ? <p className="text-muted leading-relaxed">— belum ada BP —</p>
-            : <ul className="list-none m-0 p-0 flex flex-wrap gap-2">{ch.bps.map((bp) => <li key={bp}><code className="font-mono text-[12.5px] text-accent bg-accent-soft py-[3px] px-[9px] rounded-md border border-accent-line">{bp}</code></li>)}</ul>}
+            ? <p className="text-[12px] text-muted leading-relaxed">— belum ada BP —</p>
+            : <ul className="list-none m-0 p-0 flex flex-wrap gap-1.5">{ch.bps.map((bp) => <li key={bp}><code className="font-mono text-[11.5px] text-accent bg-accent-soft py-[2px] px-2 rounded-md border border-accent-line">{bp}</code></li>)}</ul>}
         </section>
       ))}
     </>
@@ -433,27 +800,27 @@ function HistoryPage({ onResult }) {
     <>
       <PageHeader eyebrow="Runner" title="Riwayat Run"
         description="Hasil CSV di folder results/. Klik 'Buka' untuk analisa di Results Dashboard." />
-      {error && <div className="text-bad mb-3">{error}</div>}
+      {error && <div className="text-bad mb-2 text-[12px]">{error}</div>}
       <section className={cx(PANEL, 'overflow-x-auto')}>
         <table className="w-full border-collapse">
           <thead><tr>
-            <th className="text-left text-[11px] font-semibold uppercase tracking-[.1em] text-faint py-3 px-4 border-b border-border whitespace-nowrap">File</th>
-            <th className="text-left text-[11px] font-semibold uppercase tracking-[.1em] text-faint py-3 px-4 border-b border-border whitespace-nowrap">Ukuran</th>
-            <th className="text-left text-[11px] font-semibold uppercase tracking-[.1em] text-faint py-3 px-4 border-b border-border whitespace-nowrap">Waktu</th>
-            <th className="text-right text-[11px] font-semibold uppercase tracking-[.1em] text-faint py-3 px-4 border-b border-border whitespace-nowrap"></th>
+            <th className="text-left text-[10px] font-semibold uppercase tracking-[.1em] text-faint py-2 px-3 border-b border-border whitespace-nowrap">File</th>
+            <th className="text-left text-[10px] font-semibold uppercase tracking-[.1em] text-faint py-2 px-3 border-b border-border whitespace-nowrap">Ukuran</th>
+            <th className="text-left text-[10px] font-semibold uppercase tracking-[.1em] text-faint py-2 px-3 border-b border-border whitespace-nowrap">Waktu</th>
+            <th className="text-right text-[10px] font-semibold uppercase tracking-[.1em] text-faint py-2 px-3 border-b border-border whitespace-nowrap"></th>
           </tr></thead>
           <tbody>
-            {results === null && <tr><td className="py-4 px-4 text-[14px] text-muted" colSpan="4">Memuat…</td></tr>}
-            {results && results.length === 0 && <tr><td className="py-4 px-4 text-[14px] text-muted" colSpan="4">Belum ada hasil di results/.</td></tr>}
+            {results === null && <tr><td className="py-3 px-3 text-[12px] text-muted" colSpan="4">Memuat…</td></tr>}
+            {results && results.length === 0 && <tr><td className="py-3 px-3 text-[12px] text-muted" colSpan="4">Belum ada hasil di results/.</td></tr>}
             {results && results.map((it) => (
               <tr key={it.name} className="border-b border-border-soft last:border-b-0 hover:bg-border-soft/60 transition-colors">
-                <td className="py-4 px-4 text-[14px] text-text font-medium break-all">{it.name}</td>
-                <td className="py-4 px-4 text-[14px] text-muted whitespace-nowrap">{it.sizeMB} MB</td>
-                <td className="py-4 px-4 text-[13px] text-muted whitespace-nowrap">{new Date(it.mtime).toLocaleString()}</td>
-                <td className="py-4 px-4 text-right whitespace-nowrap">
+                <td className="py-3 px-3 text-[12px] text-text font-medium font-mono break-all">{it.name}</td>
+                <td className="py-3 px-3 text-[12px] text-muted whitespace-nowrap">{it.sizeMB} MB</td>
+                <td className="py-3 px-3 text-[11px] text-muted whitespace-nowrap">{new Date(it.mtime).toLocaleString()}</td>
+                <td className="py-3 px-3 text-right whitespace-nowrap">
                   <button
                     type="button"
-                    className="bg-transparent border border-border text-text text-[13px] font-medium py-1.5 px-4 rounded-lg cursor-pointer hover:border-accent hover:text-accent disabled:opacity-50 transition-colors"
+                    className="bg-transparent border border-border text-text text-[11px] font-medium py-1 px-3 rounded-lg cursor-pointer hover:border-accent hover:text-accent disabled:opacity-50 transition-colors"
                     onClick={() => open(it)}
                     disabled={busy === it.name}
                   >
@@ -520,7 +887,7 @@ function DocContent({ docPath, go }) {
   }, [toc]);
 
   return (
-    <div className="flex gap-14 items-start px-14 py-16 pb-[120px] relative max-[720px]:px-5 max-[720px]:py-8">
+    <div className="flex gap-12 items-start px-12 py-14 pb-[100px] relative max-[720px]:px-4 max-[720px]:py-6">
       <article
         ref={contentRef}
         key={docPath}
@@ -536,8 +903,8 @@ function DocContent({ docPath, go }) {
         }}
       />
       {toc.length > 0 && (
-        <nav className="docs-toc w-[216px] shrink-0 sticky top-16 self-start max-[1080px]:hidden">
-          <h2 className="text-[12px] font-bold text-head mb-3 pl-[13px]">On this page</h2>
+        <nav className="docs-toc w-[200px] shrink-0 sticky top-14 self-start max-[1080px]:hidden">
+          <h2 className="text-[11px] font-bold text-head mb-2.5 pl-3">On this page</h2>
           <ul className="list-none grid gap-px m-0 p-0">
             {toc.map(item => (
               <li key={item.id} className={item.level === 3 ? 'lvl3' : ''}>
@@ -601,16 +968,16 @@ function DashboardPage({ onData }) {
         description="Muat file CSV hasil k6 untuk melihat metrik test secara visual — TPS/RPS, latency, checks, dan detail per transaksi & API."
       />
 
-      <section className={cx(PANEL, 'grid grid-cols-[minmax(240px,360px)_1fr] gap-5 mb-6 max-[900px]:grid-cols-1')}>
-        <div className="relative grid place-items-center gap-2 min-h-[140px] border border-dashed border-border rounded-lg bg-code text-center">
+      <section className={cx(PANEL, 'grid grid-cols-[minmax(240px,360px)_1fr] gap-4 mb-5 max-[900px]:grid-cols-1')}>
+        <div className="relative grid place-items-center gap-1.5 min-h-[120px] border border-dashed border-border rounded-lg bg-code text-center">
           <input
             type="file"
             accept=".csv"
             onChange={(event) => onUpload(event.target.files?.[0])}
             className="absolute inset-0 opacity-0 cursor-pointer"
           />
-          <strong className="text-head text-[15px]">{loading ? 'Parsing CSV...' : 'Upload k6 CSV'}</strong>
-          <span className="text-muted text-[12px]">Atau gunakan Load via path untuk file besar.</span>
+          <strong className="text-head text-[13px]">{loading ? 'Parsing CSV...' : 'Upload k6 CSV'}</strong>
+          <span className="text-muted text-[11px]">Atau gunakan Load via path untuk file besar.</span>
         </div>
 
         <div className="grid grid-cols-[1fr_auto] content-center gap-2.5">
@@ -629,9 +996,9 @@ function DashboardPage({ onData }) {
       {!loading && (
         <section className={PANEL}>
           <h2 className={PANEL_H2}>Cara mendapatkan CSV</h2>
-          <ol className="m-0 pl-5 text-muted leading-[1.9] marker:text-faint [&_li]:mb-1.5 [&_strong]:text-head">
-            <li>Jalankan test dengan flag CSV: <code className="font-mono text-[12.5px] bg-accent-soft text-accent py-0.5 px-1.5 rounded-[5px]">k6perf run -Scenario &lt;nama&gt; -Mode loadtest -Csv</code></li>
-            <li>File otomatis tersimpan di folder <code className="font-mono text-[12.5px] bg-accent-soft text-accent py-0.5 px-1.5 rounded-[5px]">results/</code> sebagai <code className="font-mono text-[12.5px] bg-accent-soft text-accent py-0.5 px-1.5 rounded-[5px]">&lt;testid&gt;.csv</code>.</li>
+          <ol className="m-0 pl-5 text-[12px] text-muted leading-[1.8] marker:text-faint [&_li]:mb-1 [&_strong]:text-head">
+            <li>Jalankan test dengan flag CSV: <code className="font-mono text-[11.5px] bg-accent-soft text-accent py-0.5 px-1.5 rounded-[5px]">k6perf run -Scenario &lt;nama&gt; -Mode loadtest -Csv</code></li>
+            <li>File otomatis tersimpan di folder <code className="font-mono text-[11.5px] bg-accent-soft text-accent py-0.5 px-1.5 rounded-[5px]">results/</code> sebagai <code className="font-mono text-[11.5px] bg-accent-soft text-accent py-0.5 px-1.5 rounded-[5px]">&lt;testid&gt;.csv</code>.</li>
             <li>Drag file ke area di atas, atau tempel path lengkapnya lalu klik <strong>Load</strong>.</li>
           </ol>
         </section>
@@ -673,9 +1040,9 @@ function InShellResults({ result: initialResult, onBack, onNewResult }) {
     <main className={MAIN}>
       <div className="flex items-center gap-3 flex-wrap mb-4 pb-3 border-b border-border">
         <button onClick={onBack} className="bg-transparent border border-border text-muted py-[5px] px-3 rounded cursor-pointer whitespace-nowrap hover:text-accent hover:border-accent transition-colors">← Muat CSV lain</button>
-        <span className="text-muted text-[12px] truncate max-w-[280px]">{result.statCards?.testid || 'result'}</span>
+        <span className="text-muted text-[12px] font-mono truncate max-w-[280px]">{result.statCards?.testid || 'result'}</span>
         {result.loadTiming && (
-          <span className="text-[11px] text-accent whitespace-nowrap">
+          <span className="text-[11px] text-accent font-mono whitespace-nowrap">
             Loaded {(result.loadTiming.totalMs / 1000).toFixed(1)}s
             <span className="text-muted">
               {' '}· CSV {(result.loadTiming.csvMs / 1000).toFixed(1)}s
@@ -686,7 +1053,7 @@ function InShellResults({ result: initialResult, onBack, onNewResult }) {
         )}
         <div className="flex items-center gap-2 ml-auto">
           <input
-            className="bg-input border border-border text-text py-[5px] px-2.5 rounded w-[320px] text-[12px] focus:outline-none focus:border-accent max-[900px]:w-[180px]"
+            className="bg-input border border-border text-text font-mono py-[5px] px-2.5 rounded w-[320px] text-[12px] focus:outline-none focus:border-accent max-[900px]:w-[180px]"
             value={path}
             placeholder="Load another path…"
             onChange={(e) => setPath(e.target.value)}
@@ -836,8 +1203,8 @@ function ResultsView({ data: baseData }) {
     <section className="grid gap-5">
       <div className="flex items-center justify-between gap-3 flex-wrap border border-border rounded-xl bg-surface py-4 px-5">
         <div>
-          <strong className="block text-head">{sc.testid || 'test result'}</strong>
-          <span className="block mt-1 text-muted">{fmtN(filteredData.totalRows)} rows · {fmtDuration(durationMs)}</span>
+          <strong className="block text-head font-mono">{sc.testid || 'test result'}</strong>
+          <span className="block mt-1 text-muted font-mono">{fmtN(filteredData.totalRows)} rows · {fmtDuration(durationMs)}</span>
         </div>
       </div>
 
@@ -953,7 +1320,7 @@ function StatCard({ label, value, sub, tone = '' }) {
   return (
     <div className="border border-border rounded-xl bg-surface p-5">
       <span className="block text-faint text-[10.5px] font-semibold uppercase tracking-[.1em]">{label}</span>
-      <strong className={cx('block mt-3 mb-1.5 text-[30px] font-mono font-semibold tracking-tight', TONE[tone] || 'text-head')}>{value}</strong>
+      <strong className={cx('block mt-3 mb-1.5 text-[26px] font-mono font-semibold tracking-tight tabular-nums', TONE[tone] || 'text-head')}>{value}</strong>
       <small className="block text-muted text-[12px]">{sub}</small>
     </div>
   );
@@ -1139,7 +1506,7 @@ function ChecksTable({ rows }) {
   return (
     <div className={cx(PANEL, 'overflow-auto')}>
       <div className="flex items-center justify-between mb-2">
-        <h2 className={cx(PANEL_H2, 'mb-0')}>Checks</h2>
+        <h2 className={PANEL_H2R}>Checks</h2>
         <button className={BTN_EXPORT} onClick={handleExport}>Export CSV</button>
       </div>
       <div className={TABLE_WRAP}><table className={TABLE}>
@@ -1214,7 +1581,7 @@ function TpsSummaryTable({ data }) {
   return (
     <div className={cx(PANEL, 'overflow-auto')}>
       <div className="flex items-center justify-between mb-2">
-        <h2 className={cx(PANEL_H2, 'mb-0')}>TPS Summary</h2>
+        <h2 className={PANEL_H2R}>TPS Summary</h2>
         <button className={BTN_EXPORT} onClick={handleExport}>Export CSV</button>
       </div>
       <div className={TABLE_WRAP}><table className={TABLE}>
@@ -1289,7 +1656,7 @@ function RpsSummaryTable({ data }) {
   return (
     <div className={cx(PANEL, 'overflow-auto')}>
       <div className="flex items-center justify-between mb-2">
-        <h2 className={cx(PANEL_H2, 'mb-0')}>RPS Summary — by API</h2>
+        <h2 className={PANEL_H2R}>RPS Summary — by API</h2>
         <button className={BTN_EXPORT} onClick={handleExport}>Export CSV</button>
       </div>
       <div className={TABLE_WRAP}><table className={TABLE}>
@@ -1451,7 +1818,7 @@ function FullApiTable({ rows }) {
           <select
             value={txFilter}
             onChange={(e) => setTxFilter(e.target.value)}
-            className="border border-border rounded-[7px] bg-input text-text py-1 px-2 text-[12px] focus:outline-none focus:border-accent"
+            className="border border-border rounded-[7px] bg-input text-text font-sans py-1 px-2 text-[12px] focus:outline-none focus:border-accent"
           >
             <option value="">All transactions</option>
             {txOptions.map((tx) => <option key={tx} value={tx}>{tx}</option>)}
@@ -1651,7 +2018,7 @@ function ScriptGeneratorPage() {
 
         <div className={PANEL}>
           <h2 className={PANEL_H2}>Preview</h2>
-          <pre className="relative m-0 p-3.5 overflow-auto rounded-lg bg-code text-text font-mono text-[12.5px] leading-[1.65] min-h-[360px] scroll-thin before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-accent-grad before:rounded-t-lg">{preview}</pre>
+          <pre className="relative m-0 p-3 overflow-auto rounded-lg bg-code text-text font-mono text-[11.5px] leading-[1.6] min-h-[320px] scroll-thin before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-accent-grad before:rounded-t-lg">{preview}</pre>
         </div>
       </section>
     </>
@@ -1663,7 +2030,36 @@ function ScenarioGeneratorPage() {
   const [scenarioName, setScenarioName] = React.useState('scenario_myproject');
   const [rampStep, setRampStep] = React.useState(5);
   const [holdDuration, setHoldDuration] = React.useState(10);
+  const [mode, setMode] = React.useState('absolute'); // 'absolute' | 'percent'
   const [bps, setBps] = React.useState([]);
+  const [scriptOptions, setScriptOptions] = React.useState([]);
+
+  React.useEffect(() => {
+    fetch('/api/scripts').then((r) => r.json()).then((d) => {
+      const list = [];
+      (d.channels || []).forEach((ch) => {
+        (ch.bps || []).forEach((bp) => {
+          list.push(`${ch.channel}/${bp}`);
+        });
+      });
+      setScriptOptions(list);
+    }).catch(() => {});
+  }, []);
+
+  const toggleMode = () => {
+    setMode((prev) => {
+      const next = prev === 'absolute' ? 'percent' : 'absolute';
+      // Convert existing BP values
+      setBps((current) => current.map((bp) => {
+        if (next === 'percent') {
+          return { ...bp, percent: bp.users || 1, users: null };
+        } else {
+          return { ...bp, users: bp.percent || 50, percent: null };
+        }
+      }));
+      return next;
+    });
+  };
 
   const addBp = () => {
     const next = bps.length + 1;
@@ -1673,7 +2069,8 @@ function ScenarioGeneratorPage() {
         id: crypto.randomUUID(),
         name: `BP${String(next).padStart(3, '0')}`,
         fn: `BP${String(next).padStart(3, '0')}_NamaBP`,
-        users: 1,
+        users: mode === 'absolute' ? 1 : null,
+        percent: mode === 'percent' ? 50 : null,
         thinkTime: 1,
       },
     ]);
@@ -1687,9 +2084,11 @@ function ScenarioGeneratorPage() {
     setBps((current) => current.filter((bp) => bp.id !== id));
   };
 
+  const totalPercent = bps.reduce((s, bp) => s + (bp.percent || 0), 0);
+
   const preview = React.useMemo(
-    () => buildScenarioPreview({ scenarioName, rampStep, holdDuration, bps }),
-    [scenarioName, rampStep, holdDuration, bps]
+    () => buildScenarioPreview({ scenarioName, rampStep, holdDuration, mode, bps }),
+    [scenarioName, rampStep, holdDuration, mode, bps]
   );
 
   return (
@@ -1700,12 +2099,42 @@ function ScenarioGeneratorPage() {
         description="Fondasi UI untuk menyusun daftar BP, alokasi VU, dan konfigurasi ramp-up."
       />
 
-      <section className="grid grid-cols-2 gap-3.5 max-[900px]:grid-cols-1">
-        <form className={cx(PANEL, 'grid gap-3.5 content-start')}>
+      <section className="grid grid-cols-2 gap-3 max-[900px]:grid-cols-1">
+        <form className={cx(PANEL, 'grid gap-3 content-start')}>
           <label className={LABEL}>
             Scenario Name
             <input className={INPUT} value={scenarioName} onChange={(event) => setScenarioName(event.target.value)} placeholder="scenario_myproject" />
           </label>
+
+          {/* Mode toggle — 1x set untuk semua BP */}
+          <div className="flex items-center gap-2.5">
+            <span className="text-[9.5px] font-semibold uppercase tracking-[.1em] text-faint">Alokasi</span>
+            <button type="button" onClick={toggleMode}
+              className={cx(
+                'relative inline-flex h-5 w-[96px] items-center rounded-full border-0 cursor-pointer transition-colors',
+                mode === 'percent' ? 'bg-accent' : 'bg-border'
+              )}>
+              <span className={cx(
+                'absolute h-4 w-[44px] rounded-full bg-white shadow transition-transform',
+                mode === 'percent' ? 'translate-x-[48px]' : 'translate-x-[1px]'
+              )} />
+              <span className="relative z-10 w-1/2 text-center text-[10px] font-semibold"
+                style={{ color: mode === 'percent' ? 'rgba(255,255,255,.7)' : 'var(--head)' }}>
+                Absolut
+              </span>
+              <span className="relative z-10 w-1/2 text-center text-[10px] font-semibold"
+                style={{ color: mode === 'percent' ? 'var(--head)' : 'rgba(255,255,255,.7)' }}>
+                %
+              </span>
+            </button>
+            <span className={cx(
+              'text-[9px] font-semibold py-0.5 px-1.5 rounded-full uppercase tracking-wide',
+              mode === 'percent' ? 'bg-accent-soft text-accent' : 'bg-border text-muted'
+            )}>
+              {mode === 'percent' ? 'Persentase' : 'Absolut'}
+            </span>
+          </div>
+
           <label className={LABEL}>
             Ramp Step
             <input className={INPUT} type="number" value={rampStep} onChange={(event) => setRampStep(event.target.value)} placeholder="5" />
@@ -1714,14 +2143,26 @@ function ScenarioGeneratorPage() {
             Hold Duration (minutes)
             <input className={INPUT} type="number" value={holdDuration} onChange={(event) => setHoldDuration(event.target.value)} placeholder="10" />
           </label>
-          <button type="button" className={cx(BTN_GRAD, 'w-fit')} onClick={addBp}>Add BP Allocation</button>
 
-          <div className="grid gap-3">
+          {/* Percent total warning */}
+          {mode === 'percent' && bps.length > 0 && (
+            <div className={cx(
+              'flex items-center gap-2 text-[12px] font-mono py-2 px-3 rounded-lg border',
+              totalPercent === 100 ? 'border-good/30 bg-good/10 text-good' : 'border-warn/30 bg-warn/10 text-warn'
+            )}>
+              <span>Total: <strong>{totalPercent}%</strong></span>
+              {totalPercent !== 100 && <span>— sebaiknya 100%</span>}
+            </div>
+          )}
+
+          <button type="button" className={cx(BTN_GRAD, 'w-fit text-[12px] py-1.5 px-3')} onClick={addBp}>+ Tambah BP</button>
+
+          <div className="grid gap-2">
             {bps.map((bp, index) => (
-              <div className="grid gap-2.5 border border-border rounded-lg bg-surface-2 p-3" key={bp.id}>
-                <div className="flex items-center justify-between gap-2.5">
-                  <strong className="text-text">BP Allocation {index + 1}</strong>
-                  <button type="button" className="w-auto bg-transparent border border-bad text-bad py-[5px] px-2 rounded-md cursor-pointer text-[13px]" onClick={() => removeBp(bp.id)}>Remove</button>
+              <div className="grid gap-2 border border-border rounded-lg bg-surface-2 p-2.5" key={bp.id}>
+                <div className="flex items-center justify-between gap-2">
+                  <strong className="text-[12px] text-text">BP {index + 1}</strong>
+                  <button type="button" className="w-auto bg-transparent border border-bad text-bad py-0.5 px-1.5 rounded-md cursor-pointer text-[11px]" onClick={() => removeBp(bp.id)}>Remove</button>
                 </div>
                 <label className={LABEL}>
                   BP Name
@@ -1729,16 +2170,31 @@ function ScenarioGeneratorPage() {
                 </label>
                 <label className={LABEL}>
                   Function Name
-                  <input className={INPUT} value={bp.fn} onChange={(event) => updateBp(bp.id, { fn: event.target.value })} />
+                  <SearchableSelect
+                    value={bp.fn}
+                    options={scriptOptions}
+                    onChange={(v) => updateBp(bp.id, { fn: v })}
+                    placeholder="Pilih script BP…"
+                  />
                 </label>
-                <div className="grid grid-cols-[minmax(100px,.7fr)_1fr] gap-2.5 max-[900px]:grid-cols-1">
+                <div className="grid grid-cols-[minmax(100px,.7fr)_1fr] gap-2 max-[900px]:grid-cols-1">
+                  {mode === 'absolute' ? (
+                    <label className={LABEL}>
+                      Users (VUs)
+                      <input className={INPUT} type="number" min="1" value={bp.users ?? 1} onChange={(event) => updateBp(bp.id, { users: parseInt(event.target.value) || 1 })} />
+                    </label>
+                  ) : (
+                    <label className={LABEL}>
+                      Persentase (%)
+                      <div className="relative">
+                        <input className={cx(INPUT, 'pr-6')} type="number" min="0" max="100" value={bp.percent ?? 50} onChange={(event) => updateBp(bp.id, { percent: parseInt(event.target.value) || 0 })} />
+                        <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-faint pointer-events-none">%</span>
+                      </div>
+                    </label>
+                  )}
                   <label className={LABEL}>
-                    Users
-                    <input className={INPUT} type="number" value={bp.users} onChange={(event) => updateBp(bp.id, { users: event.target.value })} />
-                  </label>
-                  <label className={LABEL}>
-                    Think Time
-                    <input className={INPUT} type="number" value={bp.thinkTime} onChange={(event) => updateBp(bp.id, { thinkTime: event.target.value })} />
+                    Think Time (s)
+                    <input className={INPUT} type="number" min="0" value={bp.thinkTime} onChange={(event) => updateBp(bp.id, { thinkTime: parseInt(event.target.value) || 0 })} />
                   </label>
                 </div>
               </div>
@@ -1748,7 +2204,7 @@ function ScenarioGeneratorPage() {
 
         <div className={PANEL}>
           <h2 className={PANEL_H2}>Preview</h2>
-          <pre className="relative m-0 p-3.5 overflow-auto rounded-lg bg-code text-text font-mono text-[12.5px] leading-[1.65] min-h-[360px] scroll-thin before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-accent-grad before:rounded-t-lg">{preview}</pre>
+          <pre className="relative m-0 p-3 overflow-auto rounded-lg bg-code text-text font-mono text-[11.5px] leading-[1.6] min-h-[320px] scroll-thin before:content-[''] before:absolute before:top-0 before:left-0 before:right-0 before:h-0.5 before:bg-accent-grad before:rounded-t-lg">{preview}</pre>
         </div>
       </section>
     </>
@@ -1978,14 +2434,28 @@ function renderApiPreview(apiItem, baseUrl) {
   return lines.join('\n');
 }
 
-function buildScenarioPreview({ scenarioName, rampStep, holdDuration, bps }) {
+function buildScenarioPreview({ scenarioName, rampStep, holdDuration, mode, bps }) {
   const imports = bps.length ? bps.map((bp) =>
     `import { ${bp.fn || 'BPxxx_NamaBP'} } from '../scripts/NamaProject/${bp.fn || 'BPxxx_NamaBP'}/${bp.fn || 'BPxxx_NamaBP'}.js';`
   ).join('\n') : '// import { BP001_NamaBP } from \'../scripts/NamaProject/BP001_NamaBP/BP001_NamaBP.js\';';
 
-  const list = bps.length ? bps.map((bp) =>
-    `    { name: '${bp.name || 'BPxxx'}', users: ${Number(bp.users) || 1}, fn: ${bp.fn || 'BPxxx_NamaBP'}, thinkTime: ${Number(bp.thinkTime) || 0} },`
-  ).join('\n') : '    // { name: \'BP001\', users: 1, fn: BP001_NamaBP, thinkTime: 1 },';
+  const isPercentMode = mode === 'percent';
+
+  const list = bps.length ? bps.map((bp) => {
+    if (isPercentMode) {
+      return `    { name: '${bp.name || 'BPxxx'}', percent: ${Number(bp.percent) || 50}, fn: ${bp.fn || 'BPxxx_NamaBP'}, thinkTime: ${Number(bp.thinkTime) || 0} },`;
+    }
+    return `    { name: '${bp.name || 'BPxxx'}', users: ${Number(bp.users) || 1}, fn: ${bp.fn || 'BPxxx_NamaBP'}, thinkTime: ${Number(bp.thinkTime) || 0} },`;
+  }).join('\n') : '    // { name: \'BP001\', users: 1, fn: BP001_NamaBP, thinkTime: 1 },';
+
+  const loadConfigLines = [
+    `    rampStep: ${Number(rampStep) || 1},`,
+    `    rampInterval: 1,`,
+    `    holdDuration: ${Number(holdDuration) || 10},`,
+  ];
+  if (isPercentMode) {
+    loadConfigLines.push(`    totalVus: 10,`);
+  }
 
   return `// File: workspace/scenarios/${scenarioName || 'scenario_myproject'}.js
 import { MODE, createOptions, dispatchVu, setBpList } from '../../framework/index.js';
@@ -1997,9 +2467,7 @@ ${list}
 ];
 
 const loadConfig = {
-    rampStep: ${Number(rampStep) || 1},
-    rampInterval: 1,
-    holdDuration: ${Number(holdDuration) || 10},
+${loadConfigLines.join('\n')}
 };
 
 setBpList(bpList);
