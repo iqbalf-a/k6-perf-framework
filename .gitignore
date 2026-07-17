@@ -1,6 +1,8 @@
 # ── Dependencies ──────────────────────────────────────────────────────────────
 node_modules/
-dashboard/dist/
+# dashboard/dist sengaja DI-COMMIT (artefak build) supaya server offline bisa
+# langsung `k6perf dashboard` tanpa npm install/build. Build ulang sebelum
+# commit bila mengubah dashboard/src: cd dashboard && npm run build
 dashboard/public/docs/
 
 # ── k6 binary (portable) ──────────────────────────────────────────────────────
