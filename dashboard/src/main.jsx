@@ -64,6 +64,13 @@ Chart.register(CategoryScale, LinearScale, LineController, LineElement, PointEle
 
 const COLORS = ['#22d3ee','#39d98a','#ffaa3b','#a78bfa','#f472b6','#fb923c','#34d399','#60a5fa','#e879f9','#4ade80'];
 
+// crypto.randomUUID hanya tersedia di secure context (https/localhost).
+// Fallback supaya dashboard tetap jalan saat diakses via IP jaringan
+// (http://10.x.x.x:3000) — tanpa ini klik Add Step/Tambah BP bikin blank page.
+const uid = () => (window.crypto?.randomUUID
+  ? crypto.randomUUID()
+  : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`);
+
 const NAV = [
   { title: 'Workspace', items: [
     { id: '',        label: 'Results Dashboard' },
@@ -826,7 +833,7 @@ function ScenarioSettings({ detail, onSaved }) {
     const detectedMode = (detail.bps || []).some((b) => b.percent != null) ? 'percent' : 'users';
     setMode(detectedMode);
     setBps((detail.bps || []).map((b) => ({
-      key: crypto.randomUUID(),
+      key: uid(),
       name: b.name,
       fn: b.fn || '',
       importPath: b.importPath || '',
@@ -865,7 +872,7 @@ function ScenarioSettings({ detail, onSaved }) {
   const removeBp = (key) => setBps((cur) => cur.filter((b) => b.key !== key));
   const addBp = () => {
     setBps((cur) => [...cur, {
-      key: crypto.randomUUID(),
+      key: uid(),
       name: '',
       fn: '', importPath: '', folder: '',
       value: mode === 'percent' ? 50 : 1,
@@ -2560,7 +2567,7 @@ function ScriptGeneratorPage() {
     setSteps((current) => [
       ...current,
       {
-        id: crypto.randomUUID(),
+        id: uid(),
         transaction: `${bpName}_${String(next).padStart(2, '0')}`,
         apis: [createApiDraft(next, 1)],
       },
@@ -2626,14 +2633,14 @@ function ScriptGeneratorPage() {
             Base URL Parameter
             <input className={INPUT} value={baseUrl} onChange={(event) => setBaseUrl(event.target.value)} placeholder="parameter.BASE_URL" />
           </label>
-          <button type="button" className={cx(BTN_GRAD, 'w-fit')} onClick={addStep}>Add Step</button>
+          <button type="button" className={cx(BTN_GRAD, 'w-fit text-[12px] py-1.5 px-3')} onClick={addStep}>+ Add Step</button>
 
           <div className="grid gap-3">
             {steps.map((step, index) => (
               <div className="grid gap-2.5 border border-border rounded-lg bg-surface-2 p-3" key={step.id}>
                 <div className="flex items-center justify-between gap-2.5">
-                  <strong className="text-text">Step {index + 1}</strong>
-                  <button type="button" className="w-auto bg-transparent border border-bad text-bad py-[5px] px-2 rounded-md cursor-pointer text-[13px]" onClick={() => removeStep(step.id)}>Remove</button>
+                  <strong className="text-[12px] text-text">Step {index + 1}</strong>
+                  <button type="button" className="w-auto bg-transparent border border-bad text-bad py-0.5 px-1.5 rounded-md cursor-pointer text-[11px]" onClick={() => removeStep(step.id)}>Remove</button>
                 </div>
                 <label className={LABEL}>
                   Transaction
@@ -2644,8 +2651,8 @@ function ScriptGeneratorPage() {
                   {step.apis.map((apiItem, apiIndex) => (
                     <div className="grid gap-2.5 border border-[rgba(60,60,67,.85)] rounded-[7px] bg-surface p-[11px]" key={apiItem.id}>
                       <div className="flex items-center justify-between gap-2.5">
-                        <strong className="text-text">API {apiIndex + 1}</strong>
-                        <button type="button" className="w-auto bg-transparent border border-bad text-bad py-[5px] px-2 rounded-md cursor-pointer text-[13px]" onClick={() => removeApi(step.id, apiItem.id)}>Remove API</button>
+                        <strong className="text-[12px] text-text">API {apiIndex + 1}</strong>
+                        <button type="button" className="w-auto bg-transparent border border-bad text-bad py-0.5 px-1.5 rounded-md cursor-pointer text-[11px]" onClick={() => removeApi(step.id, apiItem.id)}>Remove API</button>
                       </div>
                       <label className={LABEL}>
                         API Name
@@ -2690,7 +2697,7 @@ function ScriptGeneratorPage() {
                     </div>
                   ))}
                 </div>
-                <button type="button" className="w-fit bg-transparent border border-accent text-accent rounded-[7px] px-[18px] py-2.5 cursor-pointer hover:bg-accent-soft" onClick={() => addApi(step.id)}>Add API</button>
+                <button type="button" className="w-fit bg-transparent border border-accent text-accent text-[12px] rounded-lg py-1.5 px-3.5 cursor-pointer hover:bg-accent-soft" onClick={() => addApi(step.id)}>+ Add API</button>
               </div>
             ))}
           </div>
@@ -2746,7 +2753,7 @@ function ScenarioGeneratorPage() {
     setBps((current) => [
       ...current,
       {
-        id: crypto.randomUUID(),
+        id: uid(),
         name: `BP${String(next).padStart(3, '0')}`,
         fn: `BP${String(next).padStart(3, '0')}_NamaBP`,
         users: mode === 'absolute' ? 1 : null,
@@ -3080,7 +3087,7 @@ ${renderedSteps}
 
 function createApiDraft(stepIndex, apiIndex) {
   return {
-    id: crypto.randomUUID(),
+    id: uid(),
     name: `${String(stepIndex).padStart(3, '0')}_${String(apiIndex).padStart(2, '0')}_/api/example`,
     method: 'GET',
     path: '/api/example',
