@@ -118,7 +118,7 @@ export function createRunnerRouter(root) {
   router.get('/api/scenarios', (req, res) => {
     try {
       const scenarios = fs.readdirSync(SCEN_DIR)
-        .filter((f) => f.endsWith('.js'))
+        .filter((f) => f.endsWith('.js') && !f.startsWith('_inspect'))
         .map((f) => f.replace(/\.js$/, ''))
         .sort();
       res.json({ scenarios });
@@ -186,7 +186,7 @@ export function createRunnerRouter(root) {
   router.get('/api/scenarios/detail', (req, res) => {
     try {
       const files = fs.readdirSync(SCEN_DIR)
-        .filter((f) => f.endsWith('.js'))
+        .filter((f) => f.endsWith('.js') && !f.startsWith('_inspect'))
         .sort();
       const scenarios = files.map((f) => {
         const name = f.replace(/\.js$/, '');
@@ -278,8 +278,10 @@ export function createRunnerRouter(root) {
     }
 
     const lc = body.loadConfig || {};
+    // rampStep 0 valid: "simultan" — semua VU mulai bersamaan (constant-vus).
+    const toNat = (v, fallback) => { const n = parseInt(v); return Number.isFinite(n) && n >= 0 ? n : fallback; };
     const loadConfig = {
-      rampStep:     Math.max(0, parseInt(lc.rampStep) || 1),
+      rampStep:     toNat(lc.rampStep, 1),
       rampInterval: Math.max(0, parseInt(lc.rampInterval) || 1),
       holdDuration: Math.max(0, parseInt(lc.holdDuration) || 1),
       totalVus:     (lc.totalVus != null && lc.totalVus !== '') ? Math.max(0, parseInt(lc.totalVus) || 0) : null,
@@ -330,7 +332,10 @@ export function createRunnerRouter(root) {
   router.get('/api/run', (req, res) => {
     const scenario   = cleanName(req.query.scenario);
     const mode       = MODES.includes(String(req.query.mode)) ? String(req.query.mode) : 'testhit';
-    const vus        = Math.max(1, parseInt(req.query.vus) || 1);
+    // VUS opsional: bila tidak dikirim, biarkan scenario yang menentukan
+    // (users absolut / loadConfig.totalVus). Kirim env hanya bila ada.
+    const vusQ       = parseInt(req.query.vus);
+    const vus        = vusQ > 0 ? vusQ : null;
     const iterations = Math.max(1, parseInt(req.query.iterations) || 1);
     const csv        = String(req.query.csv) === 'true';
     const debug      = String(req.query.debug) === 'true';
@@ -353,7 +358,7 @@ export function createRunnerRouter(root) {
     const testid = `${scenario}_${mode}_${stamp}`;
     const args = [
       'run',
-      '-e', `MODE=${mode}`, '-e', `VUS=${vus}`, '-e', `ITERATIONS=${iterations}`,
+      '-e', `MODE=${mode}`, ...(vus != null ? ['-e', `VUS=${vus}`] : []), '-e', `ITERATIONS=${iterations}`,
       '--tag', `testid=${testid}`,
       ...parseTags(req.query.tags),
     ];
@@ -407,6 +412,78 @@ export function createRunnerRouter(root) {
       if (currentRun && currentRun.child === child && child.exitCode === null) {
         try { child.kill(); } catch {}
         clear();
+      }
+    });
+  });
+
+  // ── API Inspector — jalankan 1 BP (1 VU, 1 iterasi) dan stream log via SSE.
+  //    Framework emit baris @@REQRES (lihat framework/http/inspect.js) yang
+  //    di-parse dashboard menjadi daftar request/response per API. ───────────
+  router.get('/api/inspect', (req, res) => {
+    const fn         = cleanIdent(req.query.fn);
+    const importPath = String(req.query.importPath || '');
+
+    // Validasi terhadap katalog — cegah import file sembarangan.
+    const entry = buildBpCatalog().find((c) => c.fn === fn && c.importPath === importPath);
+    if (!entry) return res.status(404).json({ error: 'Script BP tidak ditemukan di katalog.' });
+    if (!fs.existsSync(K6_BIN)) return res.status(500).json({ error: 'k6 binary tidak ditemukan di bin/.' });
+    if (currentRun) return res.status(409).json({ error: 'Masih ada test yang berjalan. Hentikan dulu.' });
+
+    // Scenario temporer: 1 BP, 1 user, testhit. Dihapus setelah run selesai.
+    const tmpPath = path.join(SCEN_DIR, '_inspect_tmp.js');
+    const source = `// File temporer API Inspector — dibuat & dihapus otomatis oleh dashboard.
+import { MODE, createOptions, dispatchVu, setBpList } from '../../framework/index.js';
+import { ${entry.fn} } from '${entry.importPath}';
+const bpList = [{ name: '${entry.bp}', users: 1, fn: ${entry.fn}, thinkTime: 0 }];
+setBpList(bpList);
+export const options = createOptions(bpList, MODE, { rampStep: 1, rampInterval: 1, holdDuration: 1 });
+export default function () { dispatchVu(bpList, MODE); }
+`;
+    try { fs.writeFileSync(tmpPath, source); }
+    catch (err) { return res.status(500).json({ error: `Gagal menulis scenario temporer: ${err.message}` }); }
+    const cleanupTmp = () => { try { fs.unlinkSync(tmpPath); } catch {} };
+
+    const stamp  = new Date().toISOString().replace(/[:T]/g, '-').replace(/\..+/, '').slice(0, 16);
+    const testid = `inspect_${entry.bp}_${stamp}`;
+    // --log-format=json → tiap baris log (termasuk console.log @@REQRES) jadi
+    // JSON satu baris; parsing di client deterministik.
+    const args = [
+      'run',
+      '-e', 'MODE=testhit', '-e', 'ITERATIONS=1', '-e', 'INSPECT=1',
+      '--log-format=json',
+      '--tag', `testid=${testid}`,
+      tmpPath,
+    ];
+
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders?.();
+    const send = (event, data) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+
+    send('start', { testid, cmd: `k6 run (inspect) ${entry.channel}/${entry.bp} · ${entry.fn}` });
+
+    let child;
+    try {
+      child = spawn(K6_BIN, args, { cwd: root, env: { ...process.env } });
+    } catch (err) {
+      cleanupTmp();
+      send('error', { message: err.message });
+      return res.end();
+    }
+    currentRun = { child, testid };
+    const clear = () => { if (currentRun && currentRun.child === child) currentRun = null; };
+
+    child.stdout.on('data', (d) => send('log', { text: d.toString() }));
+    child.stderr.on('data', (d) => send('log', { text: d.toString() }));
+    child.on('close', (code) => { send('done', { code }); clear(); cleanupTmp(); res.end(); });
+    child.on('error', (err) => { send('error', { message: err.message }); clear(); cleanupTmp(); res.end(); });
+
+    req.on('close', () => {
+      if (currentRun && currentRun.child === child && child.exitCode === null) {
+        try { child.kill(); } catch {}
+        clear(); cleanupTmp();
       }
     });
   });

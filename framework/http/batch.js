@@ -5,6 +5,7 @@ import { api_duration } from "../core/metrics.js";
 import { pushLoki } from "../observability/loki.js";
 import { extractJsonpath, extractHeader, extractRegex } from "./extract.js";
 import { batchState } from "./_batchState.js";
+import { inspectActive, emitInspect, clipBody } from "./inspect.js";
 
 export function batch(transaction, fn) {
     // Aktifkan batch mode — api() calls di dalam fn() akan di-queue, tidak execute
@@ -54,6 +55,16 @@ export function batch(transaction, fn) {
                     case 'header':   extractHeader  (res, e.header,  e.name,        e.notFound); break;
                     case 'regex':    extractRegex   (res, e.pattern, e.name, e.all, e.notFound); break;
                 }
+            });
+        }
+
+        if (inspectActive) {
+            emitInspect({
+                tx, api: name, method: r.method || "GET", url: r.url, batch: true,
+                reqHeaders: batchReq[i].params.headers, reqBody: clipBody(r.body || null),
+                status: res.status, ok: isSuccess,
+                duration: Math.round(res.timings.duration),
+                resHeaders: res.headers, resBody: clipBody(res.body),
             });
         }
 

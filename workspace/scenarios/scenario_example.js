@@ -8,14 +8,16 @@ import { PizzaOrder } from '../scripts/_exampleChannel/PizzaOrder/PizzaOrder.js'
 import { BPxxx_NamaBP } from '../scripts/_template/BPxxx_NamaBP/BPxxx_NamaBP.js';
 
 const bpList = [
-    { name: 'PizzaOrder', percent: 60, fn: PizzaOrder, thinkTime: 1 },
-    { name: 'BPxxx_NamaBP', percent: 50, fn: BPxxx_NamaBP, thinkTime: 1 },
+    { name: 'PizzaOrder', percent: 0, fn: PizzaOrder, thinkTime: 1 },
+    { name: 'BPxxx_NamaBP', percent: 25, fn: BPxxx_NamaBP, thinkTime: 1 },
+    { name: 'PizzaOrder', percent: 25, fn: PizzaOrder, thinkTime: 1 },
+    { name: 'BPxxx_NamaBP', percent: 25, fn: BPxxx_NamaBP, thinkTime: 1 },
 ];
 
 const loadConfig = {
-    rampStep: 5,
+    rampStep: 20,
     rampInterval: 10,
-    holdDuration: 120,
+    holdDuration: 10,
     totalVus: 100,
 };
 

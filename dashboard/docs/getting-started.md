@@ -65,7 +65,7 @@ k6perf list
 
 ## Langkah Berikutnya
 
-- [Cara Run](./cara-run) — mode, parameter, dan contoh command
+- [Menjalankan Test](./cara-run) — mode, parameter, dan contoh command
 - [Tambah BP Baru](./framework/tambah-bp) — buat script Business Process pertama
 - [k6 Dashboard](./observability/k6-dashboard) — visualisasi hasil test tanpa Grafana
 - [Grafana Stack](./observability/grafana) — kirim metric ke Prometheus + Grafana (flag `-Prometheus`)

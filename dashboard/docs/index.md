@@ -14,7 +14,7 @@ Framework k6 untuk load testing multi-BP (Business Process).
 ## Pengenalan
 
 - [Getting Started](getting-started) — setup, prerequisites, struktur project
-- [Cara Run](cara-run) — parameter `k6perf` dan contoh penggunaan
+- [Menjalankan Test](cara-run) — parameter `k6perf` dan contoh penggunaan
 - [Struktur Folder](struktur-folder) — layout direktori lengkap
 
 ## Framework Guide
@@ -24,7 +24,7 @@ Framework k6 untuk load testing multi-BP (Business Process).
 - [Extract & Batch](framework/extract-batch) — ekstrak data response dan request paralel
 - [Variable Sources](framework/variable-sources) — sumber data: CSV, session, parameter
 - [Auth](framework/auth) — pola autentikasi token
-- [Transaksi Gagal](framework/transaction-fail) — behavior otomatis saat API error
+- [Menangani Transaksi Gagal](framework/transaction-fail) — behavior otomatis saat API error
 
 ## Observability
 

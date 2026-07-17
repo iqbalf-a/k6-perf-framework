@@ -1,4 +1,4 @@
-# Cara Run
+# Menjalankan Test
 
 Semua perintah dijalankan dari **CMD** (Command Prompt) di folder repo.
 

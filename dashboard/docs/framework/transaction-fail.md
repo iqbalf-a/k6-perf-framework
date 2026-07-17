@@ -1,4 +1,4 @@
-# Transaksi Gagal
+# Menangani Transaksi Gagal
 
 ## Behavior Otomatis
 

@@ -105,10 +105,10 @@ function parseK6CSV(filePath) {
       const eapi = `COALESCE(regexp_extract(extra_tags,'api=([^&]*)',1),'')`;
       const etid = `COALESCE(regexp_extract(extra_tags,'testid=([^&]*)',1),'')`;
 
-      let metaRows, reqRows, httpDurBktRows, httpDurStatRows, trxDurBktRows,
+      let metaRows, reqRows, httpDurBktRows, httpDurStatRows, apiDurStatRows, trxDurBktRows,
           trxDurStatRows, trxCountRows, apiDurRows, checkRows, timingRows, vuRows, tsRows;
       try {
-        [metaRows, reqRows, httpDurBktRows, httpDurStatRows, trxDurBktRows,
+        [metaRows, reqRows, httpDurBktRows, httpDurStatRows, apiDurStatRows, trxDurBktRows,
          trxDurStatRows, trxCountRows, apiDurRows, checkRows, timingRows, vuRows, tsRows,
         ] = await Promise.all([
         // metadata: testid + row count — scan seluruh tabel tapi ringan
@@ -134,6 +134,14 @@ function parseK6CSV(filePath) {
                     PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY val) AS p95,
                     PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY val) AS p99
              FROM k6 WHERE metric_name = 'http_req_duration'`),
+
+        // http_req_duration per tx+api overall — percentiles exact (bukan aproksimasi bucket)
+        sel(`SELECT ${etx} AS tx, ${eapi} AS api,
+                    PERCENTILE_CONT(0.9)  WITHIN GROUP (ORDER BY val) AS p90,
+                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY val) AS p95,
+                    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY val) AS p99
+             FROM k6 WHERE metric_name = 'http_req_duration'
+             GROUP BY tx, api`),
 
         // trx_duration per bucket + tx
         sel(`SELECT bucket, ${etx} AS tx,
@@ -278,13 +286,21 @@ function parseK6CSV(filePath) {
         trxAllBkts[b] = (trxAllBkts[b] || 0) + n;
       });
 
-      const txDurStats = {};   // tx → { n, avg, mn, mx, p90 }
+      const txDurStats = {};   // tx → { n, avg, mn, mx, p90, p95, p99 }
       trxDurStatRows.forEach(r => {
         const n = Number(r.n);
         txDurStats[r.tx] = {
           n, avg: n ? Number(r.sum) / n : 0,
           mn: Number(r.mn), mx: Number(r.mx),
-          p90: Number(r.p90 || 0),
+          p90: Number(r.p90 || 0), p95: Number(r.p95 || 0), p99: Number(r.p99 || 0),
+        };
+      });
+
+      // http_req_duration percentiles per tx+api (exact)
+      const apiDurStats = {};  // "tx||api" → { p90, p95, p99 }
+      apiDurStatRows.forEach(r => {
+        apiDurStats[`${r.tx}||${r.api}`] = {
+          p90: Number(r.p90 || 0), p95: Number(r.p95 || 0), p99: Number(r.p99 || 0),
         };
       });
 
@@ -419,10 +435,12 @@ function parseK6CSV(filePath) {
       // ── TX table ────────────────────────────────────────────────────────────
       const txTable = transactions.map(tx => {
         const ts = txDurStats[tx];
-        let mn, mx, avg, p90, sample, success, error;
+        let mn, mx, avg, p90, p95, p99, sample, success, error;
 
         if (ts && ts.n > 0) {
-          mn = ts.mn; mx = ts.mx; avg = ts.avg; p90 = ts.p90; sample = ts.n;
+          mn = ts.mn; mx = ts.mx; avg = ts.avg;
+          p90 = ts.p90; p95 = ts.p95; p99 = ts.p99;
+          sample = ts.n;
         } else {
           // fallback: estimate from api duration buckets
           let bMn=Infinity, bMx=-Infinity, bSum=0, bN=0;
@@ -440,6 +458,8 @@ function parseK6CSV(filePath) {
           mx = bMx === -Infinity ? 0 : bMx;
           avg = bN ? bSum / bN : 0;
           p90 = pctSorted(bktAvgs, .9);
+          p95 = pctSorted(bktAvgs, .95);
+          p99 = pctSorted(bktAvgs, .99);
           sample = bN ? Math.round(bN / Math.max(txApiKeys.length, 1)) : 0;
         }
 
@@ -458,7 +478,7 @@ function parseK6CSV(filePath) {
         }
 
         return {
-          transaction: tx, min: mn, avg, max: mx, p90,
+          transaction: tx, min: mn, avg, max: mx, p90, p95, p99,
           success, error, sample,
           successRate: sample ? parseFloat((success / sample * 100).toFixed(1)) : 0,
         };
@@ -475,12 +495,16 @@ function parseK6CSV(filePath) {
         });
         bktAvgs.sort((a, b) => a - b);
         const sample = item.ok + item.err;
+        // Percentile exact dari query per tx+api; fallback aproksimasi bucket-avg.
+        const ps = apiDurStats[`${item.transaction}||${item.api}`] || {};
         return {
           transaction: item.transaction, api: item.api,
           min: mn === Infinity  ? 0 : mn,
           avg: n ? sum / n      : 0,
           max: mx === -Infinity ? 0 : mx,
-          p90: pctSorted(bktAvgs, .9),
+          p90: ps.p90 ?? pctSorted(bktAvgs, .9),
+          p95: ps.p95 ?? pctSorted(bktAvgs, .95),
+          p99: ps.p99 ?? pctSorted(bktAvgs, .99),
           success: item.ok, error: item.err, sample,
           successRate: sample ? parseFloat((item.ok / sample * 100).toFixed(1)) : 0,
         };

@@ -6,6 +6,7 @@ import { getSession } from "../core/session.js";
 import { pushLoki } from "../observability/loki.js";
 import { extractHeader, extractJsonpath, extractRegex } from "./extract.js";
 import { batchState } from "./_batchState.js";
+import { inspectActive, emitInspect, clipBody } from "./inspect.js";
 
 const DEBUG_ALL = __ENV.DEBUG === "true";
 
@@ -151,6 +152,16 @@ export function api(request) {
 ║ Extract value : ${JSON.stringify(session[e.name])}
 ╚══════════════════════════════════════════════`);
             }
+        });
+    }
+
+    if (inspectActive) {
+        emitInspect({
+            tx: transaction, api: name, method, url,
+            reqHeaders: finalHeaders, reqBody: clipBody(body),
+            status: res.status, ok: isSuccess,
+            duration: Math.round(res.timings.duration),
+            resHeaders: res.headers, resBody: clipBody(res.body),
         });
     }
 
