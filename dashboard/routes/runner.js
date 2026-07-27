@@ -354,7 +354,7 @@ export function createRunnerRouter(root) {
     }
 
     // Susun argumen k6.
-    const stamp  = new Date().toISOString().replace(/[:T]/g, '-').replace(/\..+/, '').slice(0, 16);
+    const stamp  = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().replace(/[:T]/g, '-').replace(/\..+/, '').slice(0, 16);
     const testid = `${scenario}_${mode}_${stamp}`;
     const args = [
       'run',
@@ -443,7 +443,7 @@ export default function () { dispatchVu(bpList, MODE); }
     catch (err) { return res.status(500).json({ error: `Gagal menulis scenario temporer: ${err.message}` }); }
     const cleanupTmp = () => { try { fs.unlinkSync(tmpPath); } catch {} };
 
-    const stamp  = new Date().toISOString().replace(/[:T]/g, '-').replace(/\..+/, '').slice(0, 16);
+    const stamp  = new Date(Date.now() + 7 * 60 * 60 * 1000).toISOString().replace(/[:T]/g, '-').replace(/\..+/, '').slice(0, 16);
     const testid = `inspect_${entry.bp}_${stamp}`;
     // --log-format=json → tiap baris log (termasuk console.log @@REQRES) jadi
     // JSON satu baris; parsing di client deterministik.
