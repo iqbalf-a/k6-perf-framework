@@ -1,0 +1,122 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── Design tokens (blue accent, dark + light) ─────────────────────────────
+   Kept as CSS variables so Tailwind color utilities (bg-surface, text-accent…)
+   resolve per-theme. Swapped by [data-theme].                                 */
+@layer base {
+  :root {
+    --bg: #0b0c10;
+    --sidebar: #08090c;
+    --surface: #14161c;
+    --surface-2: #1b1e26;
+    --input: #0d0f14;
+    --code: #13151b;
+    --border: #1f222b;
+    --border-soft: #17191f;
+    --text: #d7d9e0;
+    --head: #f4f5f8;
+    --muted: #868a99;
+    --faint: #565a68;
+    --accent: #3b82f6;
+    --accent-2: #67d3ff;
+    --accent-soft: rgba(59, 130, 246, .12);
+    --accent-line: rgba(59, 130, 246, .38);
+  }
+
+  [data-theme="light"] {
+    --bg: #fbfaf7;
+    --sidebar: #f4f2ec;
+    --surface: #ffffff;
+    --surface-2: #f3f1ea;
+    --input: #f0ede5;
+    --code: #f3f1ea;
+    --border: #e7e3d9;
+    --border-soft: #efece3;
+    --text: #33333a;
+    --head: #17171b;
+    --muted: #6b6b76;
+    --faint: #9b9ba3;
+    --accent: #2563eb;
+    --accent-2: #0ea5e9;
+    --accent-soft: rgba(37, 99, 235, .08);
+    --accent-line: rgba(37, 99, 235, .32);
+  }
+
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    margin: 0;
+  }
+
+  ::selection {
+    background: var(--accent-soft);
+    color: var(--head);
+  }
+}
+
+@layer components {
+  /* Gradient accent text (eyebrow / brand) */
+  .text-accent-grad {
+    @apply bg-accent-grad bg-clip-text text-transparent;
+  }
+
+  /* Sortable table-header arrow indicators */
+  .th-sort { @apply relative pr-4; }
+  .th-sort::after {
+    content: ''; position: absolute; right: 4px; top: 50%;
+    transform: translateY(-50%); width: 0; height: 0;
+  }
+  .th-sort.asc::after  { border-left: 4px solid transparent; border-right: 4px solid transparent; border-bottom: 5px solid var(--muted); }
+  .th-sort.desc::after { border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid var(--muted); }
+
+  /* Thin scrollbars inside scroll areas */
+  .scroll-thin::-webkit-scrollbar { width: 8px; height: 8px; }
+  .scroll-thin::-webkit-scrollbar-thumb { background: var(--border); border-radius: 8px; }
+
+  /* Toggle switch (Mode gelap) */
+  .switch { @apply relative inline-block w-8 h-[18px] rounded-full bg-border transition-colors; }
+  .switch.on { background: var(--accent); }
+  .switch > i {
+    @apply absolute top-[3px] left-[3px] w-3.5 h-3.5 rounded-full bg-white transition-transform;
+  }
+  .switch.on > i { transform: translateX(14px); }
+
+  /* ── Markdown prose (docs are injected via dangerouslySetInnerHTML, so
+        descendants can't take inline utilities — styled here) ─────────────── */
+  .prose-doc { @apply text-[15px] leading-[1.75] text-text; }
+  .prose-doc h1 { @apply font-sans text-[30px] font-extrabold leading-[1.2] tracking-[-.02em] text-head mt-0 mb-4; }
+  .prose-doc h2 { @apply font-sans text-[21px] font-bold tracking-[-.01em] text-head mt-[40px] mb-3 pb-2 border-b border-border; }
+  .prose-doc h3 { @apply font-sans text-[16px] font-semibold text-head mt-[26px] mb-2; }
+  .prose-doc p  { @apply my-0 mb-[16px]; }
+  .prose-doc ul, .prose-doc ol { @apply my-0 mb-[16px] pl-5; }
+  .prose-doc li { @apply mb-1.5; }
+  .prose-doc li::marker { color: var(--accent); }
+  .prose-doc strong { @apply font-bold text-head; }
+  .prose-doc a {
+    @apply text-accent no-underline;
+    background-image: linear-gradient(var(--accent-line), var(--accent-line));
+    background-size: 0% 1.5px; background-position: 0 100%;
+    background-repeat: no-repeat; transition: background-size .25s ease;
+  }
+  .prose-doc a:hover { background-size: 100% 1.5px; }
+  .prose-doc table { @apply w-full my-5 text-[13.5px] border border-border rounded-lg overflow-hidden; border-collapse: separate; border-spacing: 0; }
+  .prose-doc th { @apply bg-border-soft py-2 px-3.5 text-left text-head font-semibold text-[12px] border-b border-border; }
+  .prose-doc td { @apply py-2.5 px-3.5 border-b border-border-soft align-top; }
+  .prose-doc tr:last-child td { @apply border-b-0; }
+  .prose-doc tbody tr:hover td { background: var(--accent-soft); }
+  .prose-doc code { @apply font-mono text-[12.5px] text-accent py-0.5 px-1.5 rounded-[4px]; background: var(--accent-soft); }
+  .prose-doc pre { @apply relative bg-code border border-border rounded-lg py-3.5 px-4 overflow-x-auto my-4; }
+  .prose-doc pre::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px; background: var(--accent-grad, linear-gradient(135deg, var(--accent), var(--accent-2))); border-radius: 8px 8px 0 0; }
+  .prose-doc pre code { @apply font-mono text-[12.5px] leading-[1.65] text-text p-0; background: none; }
+  .prose-doc blockquote { @apply border-l-[3px] border-accent py-2.5 px-4 my-5 text-muted rounded-r-lg; background: var(--accent-soft); }
+  .prose-doc blockquote p:last-child { @apply mb-0; }
+  .prose-doc hr { @apply border-0 border-t border-border my-10; }
+  .prose-doc img { @apply max-w-full rounded-lg; }
+
+  /* Docs TOC right-rail links (.act toggled by scroll JS) */
+  .docs-toc a { @apply block text-[12px] text-muted py-[4px] px-2.5 border-l-2 border-border no-underline leading-[1.5] transition-colors; }
+  .docs-toc a:hover { @apply text-head; border-left-color: var(--faint); }
+  .docs-toc a.act { @apply text-accent font-semibold; border-left-color: var(--accent); }
+  .docs-toc li.lvl3 a { @apply pl-6 text-[12.5px]; }
+}
