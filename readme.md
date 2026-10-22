@@ -32,11 +32,13 @@ k6-perf-framework/
 Jalankan semua perintah dari **CMD** (Command Prompt), di folder repo ini.
 
 ```bat
-:: 1. Pastikan k6.exe ada di bin\  (download: https://github.com/grafana/k6/releases)
+:: 1. Download k6.exe dari https://github.com/grafana/k6/releases
+::    Letakkan di bin\k6.exe (tidak di-commit di repo ini)
 bin\k6.exe version
 
-:: 2. Install type definitions (IDE autocomplete)
+:: 2. Install dependencies
 npm install
+cd dashboard && npm install && cd ..
 
 :: 3. Jalankan contoh scenario (QuickPizza API publik)
 k6perf run -Scenario scenario_example -Mode testhit
